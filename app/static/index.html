@@ -8,6 +8,8 @@
 <form id="upload"><label class="filebox"> <input type="file" name="file" accept="video/*" required><span id="filename">Choose a video file</span><small>MP4 · MOV · MKV · WEBM</small></label>
 <div class="fields"><label>Creator / source name<input name="creator" placeholder="Your own gameplay, or creator name"></label><label>Original source URL (optional)<input name="source_url" type="url" placeholder="https://…"></label></div>
 <label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: I recorded this gameplay myself, or I have permission to edit and repost it."></textarea></label>
+<label class="rights-check"><input type="checkbox" name="rights_confirmed" value="yes" required> I own this footage or have permission/licence for editing and YouTube reposting.</label>
+<label class="rights-check"><input type="checkbox" name="source_completed_confirmed" value="yes" required> The source has ended and is public, not paid/subscriber-only/member-only (unless it is my own footage).</label>
 <button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">The first-pass ranking combines audio peaks with visual scene changes; it still does not understand jokes or gameplay context. For your own old YouTube uploads, download the video with YouTube Studio/Takeout, upload it here, and paste the original video URL above.</p></form>
 <div class="import-divider"><span>KICK / YOUTUBE SOURCE FILES</span></div>
 <p class="hint">For Kick clips, use Kick's own available download option or a file supplied by the creator, then upload the video above. For your own YouTube videos, use YouTube Studio or Google Takeout. Paste the original source link in the source URL field. This app does not scrape hidden playback streams or private/member-only VODs.</p></section>
@@ -17,6 +19,7 @@
 <label>Authorized RTMP / RTMPS feed<input name="stream_url" type="url" required placeholder="rtmps://your-authorized-feed.example/live/key"></label>
 <div class="fields"><label>Streamer / channel<input name="creator" required placeholder="Creator name"></label><label>Segment length (seconds)<input name="segment_seconds" type="number" min="30" max="300" value="120" required></label></div>
 <label class="rights">Permission / rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: The streamer gave written permission to capture, edit and publish clips on my YouTube channel."></textarea></label>
+<label class="rights-check"><input type="checkbox" name="permission_confirmed" value="yes" required> The creator authorized this feed, capture, editing and YouTube reuse.</label>
 <button id="liveStartBtn">Start live clipping ↗</button>
 </form><div id="liveSessions" class="live-sessions"><p class="empty">No live capture sessions yet.</p></div>
 </section>
