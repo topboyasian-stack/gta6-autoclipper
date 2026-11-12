@@ -359,7 +359,12 @@ def health():
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...), creator: str = Form(""),
-                 source_url: str = Form(""), rights_basis: str = Form(...)):
+                 source_url: str = Form(""), rights_basis: str = Form(...),
+                 rights_confirmed: str = Form(...), source_completed_confirmed: str = Form(...)):
+    if rights_confirmed != "yes":
+        raise HTTPException(403, "Confirm that you own the footage or have permission/licence for editing and YouTube reposting.")
+    if source_completed_confirmed != "yes":
+        raise HTTPException(403, "Only submit a completed source: not currently live, paid, subscriber-only or members-only unless you own it.")
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in ALLOWED:
         raise HTTPException(415, "Upload MP4, MOV, MKV, WebM or M4V footage.")
@@ -394,7 +399,10 @@ def import_kick(clip_url: str = Form(...), creator: str = Form(""), rights_basis
 
 @app.post("/api/live/start")
 def start_live_capture(stream_url: str = Form(...), creator: str = Form(...),
-                       rights_basis: str = Form(...), segment_seconds: int = Form(120)):
+                       rights_basis: str = Form(...), permission_confirmed: str = Form(...),
+                       segment_seconds: int = Form(120)):
+    if permission_confirmed != "yes":
+        raise HTTPException(403, "Confirm the streamer authorized this feed, capture, editing and YouTube reuse.")
     basis = rights_text(rights_basis)
     safe_url, descriptor = validate_authorized_rtmp_url(stream_url)
     if not creator.strip():
@@ -509,6 +517,10 @@ def youtube_upload_clip(clip_id: str, payload: dict):
         raise HTTPException(404, "Clip not found.")
     if row["status"] != "approved":
         raise HTTPException(409, "Approve the clip in the review queue before uploading it.")
+    if payload.get("rights_confirmed") is not True:
+        raise HTTPException(403, "Confirm the rights basis and cleared/removed audio before uploading.")
+    if payload.get("source_completed_confirmed") is not True:
+        raise HTTPException(403, "Confirm that the stream has ended and the source is not paid/subscriber-only/member-only.")
     if row["live_status"] in {"recording", "stopping"}:
         raise HTTPException(409, "Wait until the source stream has ended before uploading clips. Candidates can be reviewed now, but YouTube uploads are held until capture stops.")
     if row["youtube_video_id"]:
