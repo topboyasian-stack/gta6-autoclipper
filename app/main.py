@@ -659,4 +659,5 @@ def stats():
         sources = con.execute("SELECT COUNT(*) n FROM sources").fetchone()["n"]
         counts = {r["status"]: r["n"] for r in con.execute("SELECT status,COUNT(*) n FROM clips GROUP BY status")}
     return {"sources": sources, "pending": counts.get("pending", 0),
-            "approved": counts.get("approved", 0), "rejected": counts.get("rejected", 0)}
+            "approved": counts.get("approved", 0), "rejected": counts.get("rejected", 0),
+            "published": counts.get("published", 0)}
