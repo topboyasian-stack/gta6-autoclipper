@@ -270,7 +270,7 @@ def resolve_kick_clip(clip_page_url: str, clip_id: str) -> tuple[str, str]:
     return validate_kick_media_url(media_url, clip_id), title
 
 
-def create_candidates(source_id: str, source_path: Path) -> dict:
+def create_candidates(source_id: str, source_path: Path, time_offset: float = 0.0) -> dict:
     duration = probe(source_path)
     if duration <= 0:
         raise HTTPException(422, "The source video has no readable duration.")
@@ -284,9 +284,84 @@ def create_candidates(source_id: str, source_path: Path) -> dict:
         render_clip(source_path, clip_path, start, length)
         with db() as con:
             con.execute("INSERT INTO clips(id,source_id,start,duration,score,path) VALUES(?,?,?,?,?,?)",
-                        (clip_id, source_id, start, length, 0.0, str(clip_path)))
+                        (clip_id, source_id, start + time_offset, length, 0.0, str(clip_path)))
         made += 1
     return {"source_id": source_id, "filename": source_path.name, "duration": duration, "candidates_created": made}
+
+
+
+def _process_live_segment(source_id: str, segment_path: Path, segment_seconds: int):
+    match = re.search(r"segment_(\\d+)\\.ts$", segment_path.name)
+    segment_index = int(match.group(1)) if match else 0
+    create_candidates(source_id, segment_path, time_offset=segment_index * segment_seconds)
+    segment_path.unlink(missing_ok=True)
+
+
+def _live_worker(session_id: str, source_id: str, stream_url: str, segment_dir: Path,
+                 segment_seconds: int, stop_event: threading.Event):
+    log_path = segment_dir / "capture.log"
+    command = [
+        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-i", stream_url,
+        "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-f", "segment",
+        "-segment_time", str(segment_seconds), "-reset_timestamps", "1",
+        "-segment_format", "mpegts", str(segment_dir / "segment_%05d.ts"),
+    ]
+    error = None
+    processed: set[str] = set()
+    successes = 0
+    process = None
+    try:
+        with log_path.open("wb") as log:
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=log)
+            with _live_lock:
+                if session_id in _live_sessions:
+                    _live_sessions[session_id]["process"] = process
+            while True:
+                if stop_event.is_set() and process.poll() is None:
+                    process.terminate()
+                alive = process.poll() is None
+                segments = sorted(segment_dir.glob("segment_*.ts"))
+                ready = segments[:-1] if alive and not stop_event.is_set() else segments
+                for segment in ready:
+                    if str(segment) in processed:
+                        continue
+                    try:
+                        _process_live_segment(source_id, segment, segment_seconds)
+                        successes += 1
+                    except Exception as exc:
+                        error = str(exc)[:500]
+                    processed.add(str(segment))
+                if not alive:
+                    remaining = [p for p in sorted(segment_dir.glob("segment_*.ts")) if str(p) not in processed]
+                    for segment in remaining:
+                        try:
+                            _process_live_segment(source_id, segment, segment_seconds)
+                            successes += 1
+                        except Exception as exc:
+                            error = str(exc)[:500]
+                        processed.add(str(segment))
+                    break
+                if stop_event.is_set():
+                    try:
+                        process.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=10)
+                else:
+                    time.sleep(2)
+        status = "error" if error and successes == 0 else "stopped"
+    except Exception as exc:
+        error = str(exc)[:500]
+        status = "error"
+        if process and process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
+    finally:
+        with db() as con:
+            con.execute("UPDATE live_sessions SET status=?, error=?, stopped_at=CURRENT_TIMESTAMP WHERE id=?",
+                        (status, error, session_id))
+        with _live_lock:
+            _live_sessions.pop(session_id, None)
 
 
 def rights_text(value: str):
