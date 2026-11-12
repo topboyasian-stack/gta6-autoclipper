@@ -74,11 +74,19 @@ def probe(path: Path) -> float:
 
 def detect_moments(path: Path, duration: float) -> list[tuple[float, float]]:
     # Decode mono audio to 8 kHz PCM; calculate one-second RMS windows.
-    proc = run(["ffmpeg", "-v", "error", "-i", str(path), "-vn", "-ac", "1",
-                "-ar", "8000", "-f", "s16le", "pipe:1"], timeout=3600)
+    try:
+        proc = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vn", "-ac", "1",
+                               "-ar", "8000", "-f", "s16le", "pipe:1"],
+                              capture_output=True, timeout=3600, check=True)
+    except FileNotFoundError:
+        raise HTTPException(500, "FFmpeg was not found. Install FFmpeg and ensure it is on PATH.")
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(422, f"Audio analysis failed: {(exc.stderr or b'')[-1200:].decode('utf-8', 'replace')}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(408, "Audio analysis timed out.")
     import array
     samples = array.array("h")
-    samples.frombytes(proc.stdout.encode("latin1") if isinstance(proc.stdout, str) else proc.stdout)
+    samples.frombytes(proc.stdout)
     rate = 8000
     window = rate
     energies = []
