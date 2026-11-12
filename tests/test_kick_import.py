@@ -2,7 +2,7 @@ import unittest
 
 from fastapi import HTTPException
 
-from app.main import combine_moment_scores, validate_authorized_rtmp_url
+from app.main import combine_moment_scores, import_kick, validate_authorized_rtmp_url
 
 
 class AuthorizedLiveFeedTests(unittest.TestCase):
@@ -35,6 +35,18 @@ class HighlightScoringTests(unittest.TestCase):
         self.assertEqual(len(scores), 3)
         self.assertAlmostEqual(scores[0], 0.0)
         self.assertAlmostEqual(scores[1], 0.72)
+
+
+
+class KickPageImportPolicyTests(unittest.TestCase):
+    def test_direct_automated_kick_page_import_is_disabled(self):
+        with self.assertRaises(HTTPException) as caught:
+            import_kick(
+                clip_url="https://kick.com/3rdcollector/clips/clip_example",
+                creator="3rdcollector",
+                rights_basis="My own channel",
+            )
+        self.assertEqual(caught.exception.status_code, 501)
 
 
 if __name__ == "__main__":
