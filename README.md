@@ -5,7 +5,7 @@ A local, rights-aware workflow for turning permitted gaming footage into vertica
 ## Current features
 
 - Upload local video files and record source/rights details.
-- Import an eligible public Kick clip by URL.
+- Process a Kick clip downloaded through a platform-provided method or supplied by its creator.
 - Capture a creator-authorized RTMP/RTMPS feed in segments while the app is running.
 - Rank candidate moments using one-second audio energy (72%) plus FFmpeg scene-change signals (28%) when available; falls back to audio-only if scene detection fails.
 - Render 1080×1920 clips using a blurred background while preserving the full gameplay frame.
@@ -14,7 +14,7 @@ A local, rights-aware workflow for turning permitted gaming footage into vertica
 
 ## What “any streamer” means
 
-Any platform-independent feed can be clipped when the streamer provides a feed that you are authorized to capture and reuse. The app currently accepts RTMP/RTMPS feed URLs for live capture. It does not auto-discover every creator across Kick, Twitch, or YouTube, extract arbitrary watch-page media, bypass logins, or defeat DRM. Public visibility does not by itself grant reposting rights.
+Any platform-independent feed can be clipped when the streamer provides a feed that you are authorized to capture and reuse. The app currently accepts RTMP/RTMPS feed URLs for live capture. It does not auto-discover every creator across Kick, Twitch, or YouTube, extract arbitrary watch-page media, bypass logins, or defeat DRM. Public visibility does not by itself grant reposting rights. Direct automated extraction from Kick watch-page media playlists is disabled; its current terms restrict scraping and access methods not provided or authorized by the platform.
 
 For older videos from your own YouTube channel, download your own source with YouTube Studio or Google Takeout, then upload that file in the app and include the YouTube URL as its source. The YouTube Data API is used for publishing, not for downloading a video file from a watch page.
 
