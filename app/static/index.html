@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GTA 6 AutoClipper</title><link rel="stylesheet" href="/static/style.css"></head>
 <body><header><div class="brand"><span class="dot"></span><div><b>GTA 6 AUTOCLIPPER</b><small>FOOTAGE → MOMENTS → SHORTS</small></div></div><span class="local">LOCAL PROCESSING</span></header>
-<main><section class="hero"><p class="eyebrow">CREATOR WORKSPACE / MVP 0.2</p><h1>Find the moment.<br><em>Cut the clip.</em></h1><p class="sub">Turn footage you own or have permission to edit into vertical moments. Review every candidate before it can be used elsewhere.</p></section>
-<section class="stats"><div><small>UPLOADED SOURCES</small><b id="sources">0</b></div><div><small>AWAITING REVIEW</small><b id="pending">0</b></div><div><small>APPROVED</small><b id="approved">0</b></div><div><small>REJECTED</small><b id="rejected">0</b></div></section>
+<main><section class="hero"><p class="eyebrow">CREATOR WORKSPACE / MVP 0.3</p><h1>Find the moment.<br><em>Cut the clip.</em></h1><p class="sub">Turn footage you own or have permission to edit into vertical moments. Review every candidate before it can be used elsewhere.</p></section>
+<section class="panel integration"><div class="panel-head"><div><p class="eyebrow">YOUTUBE / PUBLISHING</p><h2>Your channel</h2></div><a class="button-link" href="/youtube/connect" target="_blank" rel="noopener">Connect YouTube ↗</a></div><p id="youtubeStatus" class="hint">Checking YouTube connection…</p><p class="hint">Clips are uploaded as <strong>Private</strong> first. After reviewing the private upload, use the separate Publish publicly action. This requires your own Google OAuth client file.</p></section>
+<section class="stats"><div><small>UPLOADED SOURCES</small><b id="sources">0</b></div><div><small>AWAITING REVIEW</small><b id="pending">0</b></div><div><small>APPROVED</small><b id="approved">0</b></div><div><small>REJECTED</small><b id="rejected">0</b></div><div><small>PUBLISHED</small><b id="published">0</b></div></section>
 <section class="panel"><div class="panel-head"><div><p class="eyebrow">01 / ADD FOOTAGE</p><h2>Start with a video</h2></div><span class="tag">RIGHTS REQUIRED</span></div>
 <form id="upload"><label class="filebox"> <input type="file" name="file" accept="video/*" required><span id="filename">Choose a video file</span><small>MP4 · MOV · MKV · WEBM</small></label>
 <div class="fields"><label>Creator / source name<input name="creator" placeholder="Your own gameplay, or creator name"></label><label>Original source URL (optional)<input name="source_url" type="url" placeholder="https://…"></label></div>
 <label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: I recorded this gameplay myself, or I have permission to edit and repost it."></textarea></label>
-<button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">Audio-energy detection is a first-pass filter; it does not understand jokes or gameplay context.</p></form>
+<button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">Audio-energy detection is a first-pass filter; it does not yet understand jokes or gameplay context. For your own old YouTube uploads, download the video with YouTube Studio/Takeout, upload it here, and paste the original video URL above.</p></form>
 <div class="import-divider"><span>OR IMPORT A PUBLIC KICK CLIP</span></div>
 <form id="kickImport">
 <label>Kick clip URL<input name="clip_url" type="url" required placeholder="https://kick.com/3rdcollector/clips/clip_…"></label>
@@ -16,5 +17,14 @@
 <p class="hint">Paste a public Kick clip page, not a full VOD. Import runs on this machine, and the original clip is saved locally for processing. Only import footage you own or are authorized to edit and repost.</p>
 <p id="message" role="status" aria-live="polite"></p>
 </form></section>
+<section class="panel live-panel"><div class="panel-head"><div><p class="eyebrow">LIVE / AUTHORIZED FEEDS</p><h2>Clip a live stream</h2></div><span class="tag">CREATOR PERMISSION</span></div>
+<p class="hint">Works with a streamer's authorized RTMP/RTMPS feed—not a public watch-page URL. Each completed segment is analysed and converted into candidate vertical clips for your review. The streamer's platform and feed must permit this capture and reuse.</p>
+<form id="liveForm">
+<label>Authorized RTMP / RTMPS feed<input name="stream_url" type="url" required placeholder="rtmps://your-authorized-feed.example/live/key"></label>
+<div class="fields"><label>Streamer / channel<input name="creator" required placeholder="Creator name"></label><label>Segment length (seconds)<input name="segment_seconds" type="number" min="30" max="300" value="120" required></label></div>
+<label class="rights">Permission / rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: The streamer gave written permission to capture, edit and publish clips on my YouTube channel."></textarea></label>
+<button id="liveStartBtn">Start live clipping ↗</button>
+</form><div id="liveSessions" class="live-sessions"><p class="empty">No live capture sessions yet.</p></div>
+</section>
 <section class="queue"><div class="panel-head"><div><p class="eyebrow">02 / REVIEW</p><h2>Clip approval queue</h2></div><button class="refresh" id="refresh">Refresh ↻</button></div><div id="clips" class="clips"><p class="empty">No clips yet. Add permitted footage to begin.</p></div></section>
-<footer>Approval required · No automatic publishing · Keep source rights documented</footer></main><script src="/static/app.js"></script></body></html>
+<footer>Approval required · No automatic publishing · Explicit review before upload · Keep source rights documented</footer></main><script src="/static/app.js"></script></body></html>
