@@ -223,10 +223,16 @@ def detect_moments(path: Path, duration: float) -> list[tuple[float, float]]:
     return moments
 
 def render_clip(source: Path, target: Path, start: float, length: float):
-    run(["ffmpeg", "-y", "-ss", f"{start:.2f}", "-i", str(source), "-t", f"{length:.2f}",
-         "-filter_complex", "[0:v]split=2[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[bg];[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]",
-         "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-         "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(target)], timeout=3600)
+    mute_audio = os.getenv("MUTE_SOURCE_AUDIO", "0").strip().lower() in {"1", "true", "yes"}
+    args = ["ffmpeg", "-y", "-ss", f"{start:.2f}", "-i", str(source), "-t", f"{length:.2f}",
+            "-filter_complex", "[0:v]split=2[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[bg];[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]",
+            "-map", "[v]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
+    if mute_audio:
+        args += ["-an"]
+    else:
+        args += ["-map", "0:a?", "-c:a", "aac", "-b:a", "128k"]
+    args += ["-movflags", "+faststart", str(target)]
+    run(args, timeout=3600)
 
 
 class _KickMetaParser(HTMLParser):
