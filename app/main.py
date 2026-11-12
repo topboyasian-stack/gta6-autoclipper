@@ -146,30 +146,26 @@ def probe(path: Path) -> float:
 
 
 def detect_scene_scores(path: Path, duration: float) -> dict[int, float]:
-    """Return per-second visual scene-change scores. Fail open to audio-only ranking."""
+    """Return per-second FFmpeg scene-change scores. Fail open to audio-only ranking."""
     timeout = min(900, max(60, int(duration * 2)))
     try:
         proc = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
-             "-vf", "select='gt(scene,0.25)',metadata=print:file=-", "-an", "-f", "null", "-"],
+            ["ffmpeg", "-hide_banner", "-loglevel", "info", "-i", str(path),
+             "-vf", "scdet=t=10", "-an", "-f", "null", "-"],
             capture_output=True, text=True, timeout=timeout, check=True,
         )
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return {}
-    metadata = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    current_time = None
     scores: dict[int, float] = {}
-    for line in metadata.splitlines():
-        time_match = re.search(r"pts_time:([0-9]+(?:\.[0-9]+)?)", line)
-        if time_match:
-            current_time = float(time_match.group(1))
-        score_match = re.search(r"lavfi\.scene_score=([0-9]+(?:\.[0-9]+)?)", line)
-        if score_match and current_time is not None and 0 <= current_time < duration:
-            second = int(current_time)
-            scores[second] = max(scores.get(second, 0.0), float(score_match.group(1)))
-            current_time = None
+    # scdet writes one log entry for each detected transition.
+    pattern = re.compile(r"lavfi\\.scd\\.score:\\s*([0-9]+(?:\\.[0-9]+)?),\\s*lavfi\\.scd\\.time:\\s*([0-9]+(?:\\.[0-9]+)?)")
+    for match in pattern.finditer(proc.stderr or ""):
+        score = float(match.group(1))
+        timestamp = float(match.group(2))
+        if 0 <= timestamp < duration:
+            second = int(timestamp)
+            scores[second] = max(scores.get(second, 0.0), score)
     return scores
-
 
 def combine_moment_scores(energies: list[float], scene_scores: dict[int, float]) -> list[float]:
     """Combine normalized audio peaks and scene changes, without a paid ML service."""
