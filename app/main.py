@@ -160,10 +160,10 @@ def detect_scene_scores(path: Path, duration: float) -> dict[int, float]:
     current_time = None
     scores: dict[int, float] = {}
     for line in metadata.splitlines():
-        time_match = re.search(r"pts_time:([0-9]+(?:\\.[0-9]+)?)", line)
+        time_match = re.search(r"pts_time:([0-9]+(?:\.[0-9]+)?)", line)
         if time_match:
             current_time = float(time_match.group(1))
-        score_match = re.search(r"lavfi\\.scene_score=([0-9]+(?:\\.[0-9]+)?)", line)
+        score_match = re.search(r"lavfi\.scene_score=([0-9]+(?:\.[0-9]+)?)", line)
         if score_match and current_time is not None and 0 <= current_time < duration:
             second = int(current_time)
             scores[second] = max(scores.get(second, 0.0), float(score_match.group(1)))
