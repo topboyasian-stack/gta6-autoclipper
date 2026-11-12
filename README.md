@@ -29,9 +29,13 @@ For older videos from your own YouTube channel, download your own source with Yo
 From this repository folder:
 
 ```bash
+# ChromeOS Linux (recommended beginner path)
+bash run_chromeos.sh
+
+# Or manually:
 python -m venv .venv
 # Windows: .venv\\Scripts\\activate
-# macOS/Linux/ChromeOS Linux: source .venv/bin/activate
+# macOS/Linux: source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
