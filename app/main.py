@@ -71,7 +71,7 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'recording', error TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP, stopped_at TEXT,
             FOREIGN KEY(source_id) REFERENCES sources(id))""")
-        con.execute("UPDATE live_sessions SET status='interrupted', stopped_at=CURRENT_TIMESTAMP WHERE status='recording'")
+        con.execute("UPDATE live_sessions SET status='interrupted', stopped_at=CURRENT_TIMESTAMP WHERE status IN ('recording','stopping')")
 
 
 init_db()
@@ -319,6 +319,11 @@ def _live_worker(session_id: str, source_id: str, stream_url: str, segment_dir: 
             while True:
                 if stop_event.is_set() and process.poll() is None:
                     process.terminate()
+                    try:
+                        process.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=10)
                 alive = process.poll() is None
                 segments = sorted(segment_dir.glob("segment_*.ts"))
                 ready = segments[:-1] if alive and not stop_event.is_set() else segments
