@@ -4,7 +4,7 @@ This app runs on the computer that performs media processing. A static web host 
 
 ## What is available
 
-- **Kick clips:** paste a public clip page from a channel that you own or are authorized to edit/repost.
+- **Kick clips:** use a clip file downloaded through an available platform-provided option or supplied by the creator; upload it via the file form and include the source link.
 - **Your older YouTube videos:** download your own upload using YouTube Studio or Google Takeout, then upload the file in AutoClipper and paste the original YouTube URL as its source.
 - **YouTube publishing:** connect your own channel with OAuth. After you approve a candidate, AutoClipper uploads it as **Private**. Review the private upload in YouTube before using the separate **Publish publicly on YouTube** button.
 - **Live stream capture:** a creator can provide an RTMP/RTMPS feed they control and explicitly authorize for clipping. Completed 30–300-second segments are processed into candidate clips as the stream runs. The segment duration defaults to 120 seconds.
@@ -37,7 +37,7 @@ The YouTube Data API is not a general video-download API. For source processing,
 
 A live stream is eligible only if the streamer has granted permission for recording, editing, and your intended YouTube reuse, and the platform/source permits the workflow. Ask the creator for a dedicated RTMP/RTMPS feed or a relay feed that they control. Paste that feed into **Clip a live stream** and record the authorization in the rights field.
 
-This feature does **not** crawl all Kick/Twitch/YouTube watch pages, defeat DRM, bypass login gates, or scrape arbitrary playback URLs. A public livestream URL is not by itself permission to download or repost the content. The user-provided feed URL is held in app memory for the capture; the database stores only its scheme and host to avoid persisting the stream key.
+This feature does **not** crawl Kick/Twitch/YouTube watch pages, defeat DRM, bypass login gates, or scrape arbitrary playback URLs. Kick's current Terms of Service restrict automated scraping and accessing content through means the platform has not provided or authorized. For Kick clips, use a platform-provided download or a creator-supplied file instead of extracting hidden playlist URLs. A public VOD is not by itself permission to repost the content. The user-provided RTMP feed URL is held in app memory for the capture; the database stores only its scheme and host to avoid persisting the stream key.
 
 ## Current limitations
 
@@ -53,3 +53,12 @@ This feature does **not** crawl all Kick/Twitch/YouTube watch pages, defeat DRM,
 - [YouTube Data API videos.insert](https://developers.google.com/youtube/data/reference/rest/v3/videos/insert)
 - [YouTube Terms of Service](https://www.youtube.com/t/terms)
 - [Kick Public API documentation](https://docs.kick.com/)
+
+
+## Fan-clipping practice checklist
+
+Before a candidate becomes a YouTube upload, confirm that the broadcast has ended, the source is public (not paid/subscriber-only/member-only), and the creator's permission or license covers downloading, editing, and redistribution to YouTube. Waiting until the stream ends is etiquette and timing protection—not a copyright clearance.
+
+The app automatically adds source creator and original URL attribution to the YouTube description when known. Attribution is not a substitute for permission. Review background music separately: the creator may not own music audible in the stream. When you cannot clear the music, consider muting the entire source audio; this also removes the streamer's voice and game audio. Set `MUTE_SOURCE_AUDIO=1` before starting the app to enable that safeguard.
+
+The current public Kick page importer is intentionally disabled. Download a permitted clip using a platform-provided method or ask the creator to send the file. See the current [KICK Terms of Service](https://kick.com/terms-of-service), last modified 23 March 2026, for the platform's restrictions on automated scraping and access methods.
