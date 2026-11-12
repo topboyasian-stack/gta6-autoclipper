@@ -8,7 +8,7 @@
 <form id="upload"><label class="filebox"> <input type="file" name="file" accept="video/*" required><span id="filename">Choose a video file</span><small>MP4 · MOV · MKV · WEBM</small></label>
 <div class="fields"><label>Creator / source name<input name="creator" placeholder="Your own gameplay, or creator name"></label><label>Original source URL (optional)<input name="source_url" type="url" placeholder="https://…"></label></div>
 <label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: I recorded this gameplay myself, or I have permission to edit and repost it."></textarea></label>
-<button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">Audio-energy detection is a first-pass filter; it does not yet understand jokes or gameplay context. For your own old YouTube uploads, download the video with YouTube Studio/Takeout, upload it here, and paste the original video URL above.</p></form>
+<button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">The first-pass ranking combines audio peaks with visual scene changes; it still does not understand jokes or gameplay context. For your own old YouTube uploads, download the video with YouTube Studio/Takeout, upload it here, and paste the original video URL above.</p></form>
 <div class="import-divider"><span>OR IMPORT A PUBLIC KICK CLIP</span></div>
 <form id="kickImport">
 <label>Kick clip URL<input name="clip_url" type="url" required placeholder="https://kick.com/3rdcollector/clips/clip_…"></label>
