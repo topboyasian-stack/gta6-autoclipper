@@ -1,6 +1,5 @@
 const $=s=>document.querySelector(s);
 const form=$('#upload');
-const kickForm=$('#kickImport');
 const liveForm=$('#liveForm');
 const message=$('#message');
 $('#refresh').onclick=load;
@@ -22,23 +21,6 @@ form.onsubmit=async e=>{
     await load();
   }catch(err){message.textContent=err.message}
   finally{btn.disabled=false;btn.innerHTML='Analyse uploaded footage <span>↗</span>'}
-};
-
-kickForm.onsubmit=async e=>{
-  e.preventDefault();
-  const btn=$('#kickImportBtn');
-  btn.disabled=true;btn.textContent='Fetching Kick clip…';
-  message.textContent='Resolving the public clip, saving it locally, and analysing it. Keep this tab open.';
-  try{
-    const res=await fetch('/api/import-kick',{method:'POST',body:new FormData(kickForm)});
-    const data=await res.json();
-    if(!res.ok)throw Error(data.detail||'Kick import failed');
-    message.textContent=`Done. Imported ${data.filename||'Kick clip'} and created ${data.candidates_created} candidate clips from ${Math.round(data.duration)} seconds of footage.`;
-    kickForm.reset();
-    const creator=kickForm.querySelector('[name="creator"]');if(creator)creator.value='3rdcollector';
-    await load();
-  }catch(err){message.textContent=err.message}
-  finally{btn.disabled=false;btn.innerHTML='Import &amp; analyse Kick clip <span>↗</span>'}
 };
 
 liveForm.onsubmit=async e=>{
