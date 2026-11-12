@@ -1,12 +1,20 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GTA 6 AutoClipper</title><link rel="stylesheet" href="/static/style.css"></head>
 <body><header><div class="brand"><span class="dot"></span><div><b>GTA 6 AUTOCLIPPER</b><small>FOOTAGE → MOMENTS → SHORTS</small></div></div><span class="local">LOCAL PROCESSING</span></header>
-<main><section class="hero"><p class="eyebrow">CREATOR WORKSPACE / MVP 0.1</p><h1>Find the moment.<br><em>Cut the clip.</em></h1><p class="sub">Turn footage you have permission to use into vertical moments. Every clip waits for your approval.</p></section>
+<main><section class="hero"><p class="eyebrow">CREATOR WORKSPACE / MVP 0.2</p><h1>Find the moment.<br><em>Cut the clip.</em></h1><p class="sub">Turn footage you own or have permission to edit into vertical moments. Review every candidate before it can be used elsewhere.</p></section>
 <section class="stats"><div><small>UPLOADED SOURCES</small><b id="sources">0</b></div><div><small>AWAITING REVIEW</small><b id="pending">0</b></div><div><small>APPROVED</small><b id="approved">0</b></div><div><small>REJECTED</small><b id="rejected">0</b></div></section>
 <section class="panel"><div class="panel-head"><div><p class="eyebrow">01 / ADD FOOTAGE</p><h2>Start with a video</h2></div><span class="tag">RIGHTS REQUIRED</span></div>
 <form id="upload"><label class="filebox"> <input type="file" name="file" accept="video/*" required><span id="filename">Choose a video file</span><small>MP4 · MOV · MKV · WEBM</small></label>
 <div class="fields"><label>Creator / source name<input name="creator" placeholder="Your own gameplay, or creator name"></label><label>Original source URL (optional)<input name="source_url" type="url" placeholder="https://…"></label></div>
-<label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: I recorded this gameplay myself, or I have written permission covering editing and reposting."></textarea></label>
-<button id="uploadBtn">Analyse footage <span>↗</span></button><p class="hint">Audio-energy detection is a first-pass filter; it does not understand jokes or gameplay context.</p><p id="message" role="status"></p></form></section>
-<section class="queue"><div class="panel-head"><div><p class="eyebrow">02 / REVIEW</p><h2>Clip approval queue</h2></div><button class="refresh" id="refresh">Refresh ↻</button></div><div id="clips" class="clips"><p class="empty">No clips yet. Upload permitted footage to begin.</p></div></section>
+<label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: I recorded this gameplay myself, or I have permission to edit and repost it."></textarea></label>
+<button id="uploadBtn">Analyse uploaded footage <span>↗</span></button><p class="hint">Audio-energy detection is a first-pass filter; it does not understand jokes or gameplay context.</p></form>
+<div class="import-divider"><span>OR IMPORT A PUBLIC KICK CLIP</span></div>
+<form id="kickImport">
+<label>Kick clip URL<input name="clip_url" type="url" required placeholder="https://kick.com/3rdcollector/clips/clip_…"></label>
+<div class="fields"><label>Creator / source name<input name="creator" value="3rdcollector" required></label><label class="rights">Rights basis<textarea name="rights_basis" required minlength="8" placeholder="Example: This is my own Kick channel and I have the right to edit this gameplay."></textarea></label></div>
+<button id="kickImportBtn">Import &amp; analyse Kick clip <span>↗</span></button>
+<p class="hint">Paste a public Kick clip page, not a full VOD. Import runs on this machine, and the original clip is saved locally for processing. Only import footage you own or are authorized to edit and repost.</p>
+<p id="message" role="status" aria-live="polite"></p>
+</form></section>
+<section class="queue"><div class="panel-head"><div><p class="eyebrow">02 / REVIEW</p><h2>Clip approval queue</h2></div><button class="refresh" id="refresh">Refresh ↻</button></div><div id="clips" class="clips"><p class="empty">No clips yet. Add permitted footage to begin.</p></div></section>
 <footer>Approval required · No automatic publishing · Keep source rights documented</footer></main><script src="/static/app.js"></script></body></html>
