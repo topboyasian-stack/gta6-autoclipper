@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request as URLRequest, urlopen
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -245,7 +245,7 @@ def validate_kick_media_url(media_url: str, clip_id: str) -> str:
 
 def resolve_kick_clip(clip_page_url: str, clip_id: str) -> tuple[str, str]:
     """Get a public clip's HLS URL from Kick's page metadata without login or cookies."""
-    request = Request(clip_page_url, headers={
+    request = URLRequest(clip_page_url, headers={
         "User-Agent": "Mozilla/5.0 (compatible; GTA6AutoClipper/0.2; public-clip-import)",
         "Accept": "text/html,application/xhtml+xml",
     })
@@ -291,7 +291,7 @@ def create_candidates(source_id: str, source_path: Path, time_offset: float = 0.
 
 
 def _process_live_segment(source_id: str, segment_path: Path, segment_seconds: int):
-    match = re.search(r"segment_(\\d+)\\.ts$", segment_path.name)
+    match = re.search(r"segment_(\d+)\.ts$", segment_path.name)
     segment_index = int(match.group(1)) if match else 0
     create_candidates(source_id, segment_path, time_offset=segment_index * segment_seconds)
     segment_path.unlink(missing_ok=True)
@@ -349,6 +349,11 @@ def _live_worker(session_id: str, source_id: str, stream_url: str, segment_dir: 
                         process.wait(timeout=10)
                 else:
                     time.sleep(2)
+        if process.returncode not in (0, None) and not stop_event.is_set():
+            try:
+                error = log_path.read_text(encoding="utf-8", errors="replace")[-500:] or f"FFmpeg exited with code {process.returncode}"
+            except OSError:
+                error = f"FFmpeg exited with code {process.returncode}"
         status = "error" if error and successes == 0 else "stopped"
     except Exception as exc:
         error = str(exc)[:500]
