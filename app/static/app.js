@@ -45,9 +45,10 @@ async function decide(id,status){
 }
 
 async function uploadPrivately(id,title,description,button){
+  if(!confirm('Confirm that the source has ended, you have rights to edit and repost this footage, and the audio is cleared or muted. The upload will remain PRIVATE.'))return;
   button.disabled=true;button.textContent='Uploading privately…';
   try{
-    const r=await fetch('/api/clips/'+id+'/youtube-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description})});
+    const r=await fetch('/api/clips/'+id+'/youtube-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description,rights_confirmed:true,source_completed_confirmed:true})});
     const d=await r.json();
     if(!r.ok)throw Error(d.detail||'YouTube upload failed');
     message.textContent='Uploaded privately to YouTube. Review it there before making it public.';
