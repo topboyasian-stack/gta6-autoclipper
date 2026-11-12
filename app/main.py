@@ -76,6 +76,54 @@ def init_db():
 
 init_db()
 
+_live_sessions: dict[str, dict] = {}
+_live_lock = threading.Lock()
+_youtube_oauth_states: set[str] = set()
+
+
+def validate_authorized_rtmp_url(stream_url: str) -> tuple[str, str]:
+    """Accept only explicitly supplied RTMP(S) feeds, never platform page URLs."""
+    try:
+        parsed = urlsplit(stream_url.strip())
+        port = parsed.port
+    except ValueError as exc:
+        raise HTTPException(400, "Enter a valid RTMP feed URL.") from exc
+    if parsed.scheme.lower() not in {"rtmp", "rtmps"} or not parsed.hostname:
+        raise HTTPException(400, "Use an RTMP/RTMPS feed supplied for authorized clipping. Platform watch-page URLs are not stream feeds.")
+    if parsed.username or parsed.password or (port is not None and not (1 <= port <= 65535)):
+        raise HTTPException(400, "Do not place usernames or passwords in the feed URL. Use a private stream key in the path only when its owner authorized this capture.")
+    descriptor = f"{parsed.scheme.lower()}://{parsed.hostname}" + (f":{port}" if port else "")
+    return stream_url.strip(), descriptor
+
+
+def youtube_client_secrets_configured() -> bool:
+    return YOUTUBE_CLIENT_SECRETS.is_file()
+
+
+def get_youtube_credentials():
+    if not YOUTUBE_TOKEN_FILE.is_file():
+        return None
+    try:
+        from google.oauth2.credentials import Credentials
+        import google.auth.transport.requests as google_requests
+        credentials = Credentials.from_authorized_user_file(str(YOUTUBE_TOKEN_FILE), YOUTUBE_SCOPES)
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(google_requests.Request())
+            YOUTUBE_TOKEN_FILE.write_text(credentials.to_json(), encoding="utf-8")
+        return credentials if credentials.valid else None
+    except Exception:
+        return None
+
+
+def youtube_service_or_error():
+    credentials = get_youtube_credentials()
+    if not credentials:
+        raise HTTPException(401, "Connect your YouTube channel first using the local OAuth setup.")
+    from googleapiclient.discovery import build
+    return build("youtube", "v3", credentials=credentials, cache_discovery=False)
+
+
+
 
 def run(args: list[str], timeout: int = 1800) -> subprocess.CompletedProcess:
     try:
