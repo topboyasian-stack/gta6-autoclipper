@@ -9,7 +9,7 @@ This app runs on the computer that performs media processing. A static web host 
 - **YouTube publishing:** connect your own channel with OAuth. After you approve a candidate, AutoClipper uploads it as **Private**. Review the private upload in YouTube before using the separate **Publish publicly on YouTube** button.
 - **Live stream capture:** a creator can provide an RTMP/RTMPS feed they control and explicitly authorize for clipping. Completed 30–300-second segments are processed into candidate clips as the stream runs. The segment duration defaults to 120 seconds.
 
-The clipper currently ranks one-second audio-energy peaks and renders around those peaks in vertical 9:16. This is a functional first-pass strategy, not semantic understanding: it does not reliably identify kills, jokes, clutch plays, or the actual story of a moment yet. A candidate always waits for manual review. Publishing is never automatic.
+The clipper combines one-second audio-energy peaks (72%) with FFmpeg visual scene-change signals (28%) when available, then renders around the strongest candidate in 9:16 using the full gameplay picture over a blurred background. If scene detection fails, it falls back to audio-only ranking. This is still a signal-based first pass, not semantic understanding: it does not reliably identify kills, jokes, clutch plays, or the story of a moment yet. A candidate always waits for manual review. Publishing is never automatic.
 
 ## Connect YouTube (one-time setup)
 
@@ -43,7 +43,7 @@ This feature does **not** crawl all Kick/Twitch/YouTube watch pages, defeat DRM,
 
 - This is local processing, not an always-on cloud service. The computer and app need to stay running during live capture.
 - An authorized RTMP/RTMPS media feed is required for live capture. Auto-discovery/authorization across every platform is not implemented.
-- Moment ranking is currently audio-energy based; it needs further gameplay/speech/scene-aware signals before it can be trusted to find the best moment in every stream.
+- Moment ranking combines audio energy and scene changes, but it still needs speech/transcription and gameplay-event signals before it can reliably identify the best moments.
 - YouTube OAuth requires your own Google Cloud project and client JSON. The API has quota and channel eligibility constraints set by Google/YouTube.
 - Generated videos upload as private first, and the app does not publish them without a separate explicit user action.
 
