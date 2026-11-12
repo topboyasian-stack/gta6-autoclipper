@@ -603,19 +603,34 @@ def youtube_oauth_callback(request: Request, code: str = "", state: str = "", er
 @app.post("/api/clips/{clip_id}/youtube-upload")
 def youtube_upload_clip(clip_id: str, payload: dict):
     with db() as con:
-        row = con.execute("""SELECT c.*,s.filename,s.creator,s.source_url,s.rights_basis
-                             FROM clips c JOIN sources s ON s.id=c.source_id WHERE c.id=?""", (clip_id,)).fetchone()
+        row = con.execute("""SELECT c.*,s.filename,s.creator,s.source_url,s.rights_basis,
+                             l.status AS live_status
+                             FROM clips c JOIN sources s ON s.id=c.source_id
+                             LEFT JOIN live_sessions l ON l.source_id=s.id
+                             WHERE c.id=?""", (clip_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Clip not found.")
     if row["status"] != "approved":
         raise HTTPException(409, "Approve the clip in the review queue before uploading it.")
+    if row["live_status"] in {"recording", "stopping"}:
+        raise HTTPException(409, "Wait until the source stream has ended before uploading clips. Candidates can be reviewed now, but YouTube uploads are held until capture stops.")
     if row["youtube_video_id"]:
         raise HTTPException(409, "This clip has already been uploaded to YouTube.")
     path = Path(row["path"])
     if not path.is_file():
         raise HTTPException(404, "The rendered clip file is missing.")
     title = str(payload.get("title") or (Path(row["filename"]).stem + " #Shorts")).strip()[:100]
-    description = str(payload.get("description") or "Gaming highlight. #shorts #gaming").strip()[:5000]
+    description = str(payload.get("description") or "Gaming highlight. #shorts #gaming").strip()
+    # Always add attribution metadata when an original web source is known.
+    attribution = []
+    if row["creator"]:
+        attribution.append(f"Original creator: {row['creator']}")
+    source_url = (row["source_url"] or "").strip()
+    if source_url.startswith(("https://", "http://")):
+        attribution.append(f"Original source: {source_url}")
+    if attribution:
+        description = (description + "\\n\\n" + "\\n".join(attribution)).strip()
+    description = description[:5000]
     if not title:
         raise HTTPException(400, "Enter a YouTube title.")
     if not row["rights_basis"] or len(row["rights_basis"].strip()) < 8:
