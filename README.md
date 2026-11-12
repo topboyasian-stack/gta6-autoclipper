@@ -1,37 +1,67 @@
 # GTA 6 AutoClipper
 
-A rights-aware, approval-first workflow for turning permitted gaming footage into vertical clips.
+A local, rights-aware workflow for turning permitted gaming footage into vertical clips, reviewing each candidate, and uploading approved cuts to YouTube.
 
-## MVP status
+## Current features
 
-This first version runs locally: upload footage you own or are licensed to use, detect loud audio moments, render 9:16 candidate clips with FFmpeg, and approve/reject them in a browser dashboard. It does not scrape or download third-party streams and does not publish automatically.
+- Upload local video files and record source/rights details.
+- Import an eligible public Kick clip by URL.
+- Capture a creator-authorized RTMP/RTMPS feed in segments while the app is running.
+- Rank candidate moments using one-second audio energy (72%) plus FFmpeg scene-change signals (28%) when available; falls back to audio-only if scene detection fails.
+- Render 1080×1920 clips using a blurred background while preserving the full gameplay frame.
+- Review, approve, or reject each candidate in the browser.
+- Connect your YouTube channel with OAuth, upload approved clips as **Private**, and use a separate explicit action to make a private upload public.
+
+## What “any streamer” means
+
+Any platform-independent feed can be clipped when the streamer provides a feed that you are authorized to capture and reuse. The app currently accepts RTMP/RTMPS feed URLs for live capture. It does not auto-discover every creator across Kick, Twitch, or YouTube, extract arbitrary watch-page media, bypass logins, or defeat DRM. Public visibility does not by itself grant reposting rights.
+
+For older videos from your own YouTube channel, download your own source with YouTube Studio or Google Takeout, then upload that file in the app and include the YouTube URL as its source. The YouTube Data API is used for publishing, not for downloading a video file from a watch page.
 
 ## Requirements
+
 - Python 3.11+
 - FFmpeg and ffprobe installed and available on PATH
+- A Google Cloud OAuth client JSON for YouTube publishing (optional until you are ready to connect the channel)
 
-## Run
+## Run locally
+
+From this repository folder:
+
 ```bash
 python -m venv .venv
 # Windows: .venv\\Scripts\\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+# macOS/Linux/ChromeOS Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
-Open http://127.0.0.1:8000.
 
-## Workflow
-1. Confirm you have the rights to use the footage.
-2. Upload an MP4/MOV/WebM file and record its source and rights basis.
-3. The worker analyses audio energy for candidate moments and renders vertical previews.
-4. Review every candidate; approve or reject it.
-5. Approved clips are staged locally. YouTube OAuth/upload is intentionally not enabled in this MVP.
+Open [http://localhost:8000](http://localhost:8000). Media processing happens on this computer; keep it running during live capture.
+
+## Connect YouTube
+
+Follow [docs/YOUTUBE_AND_LIVE_SOURCES.md](docs/YOUTUBE_AND_LIVE_SOURCES.md) for Google Cloud setup. Save the OAuth client JSON as `data/client_secrets.json`. The app requests only the `youtube.upload` scope and saves the OAuth token under `data/youtube-token.json`; both files are excluded from Git.
+
+The publishing sequence is always manual:
+1. Review the candidate in AutoClipper.
+2. Click **Approve**.
+3. Click **Upload privately to YouTube** and inspect that private upload.
+4. Click **Publish publicly on YouTube** only after your final review and rights check.
 
 ## Important limitations
-- Loudness is only a first-pass signal, not semantic understanding. It can miss quiet funny moments and flag explosions/music.
-- Processing happens on the machine running this app. Cloudflare Pages alone cannot run FFmpeg or continuously capture streams.
-- Never upload footage from another creator unless their permission/licence covers editing and redistribution.
-- Keep `data/` private; it contains source footage, generated clips and the SQLite database.
+
+- Current moment finding is a signal-based first pass, not semantic understanding of the game. It can still miss quiet, funny, or context-dependent moments.
+- Live capture needs a feed that the streamer authorizes and a working RTMP/RTMPS endpoint. This is not a 24/7 hosted service.
+- YouTube publishing needs your own OAuth setup and is subject to YouTube account/API limitations.
+- No clip is published automatically. A rights basis must be recorded for each source, but the user remains responsible for ensuring that it genuinely covers recording, editing, and redistribution.
+- Keep `data/` private; it can contain source footage, generated clips, the SQLite database and Google OAuth tokens.
 
 ## Configuration
-`MAX_UPLOAD_MB` defaults to 1024. Set `CLIP_SECONDS` (default 35) and `MAX_CANDIDATES` (default 8) to tune processing.
+
+- `MAX_UPLOAD_MB`: upload limit, defaults to 1024.
+- `CLIP_SECONDS`: candidate clip duration, defaults to 35 (bounded to 10–90).
+- `MAX_CANDIDATES`: candidates per source segment, defaults to 8.
+- `YOUTUBE_CLIENT_SECRETS`: optional override for `data/client_secrets.json`.
+- `YOUTUBE_REDIRECT_URI`: optional override for `http://localhost:8000/youtube/oauth/callback`.
+
+See [the source and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
