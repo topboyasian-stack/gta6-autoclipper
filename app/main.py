@@ -158,7 +158,7 @@ def detect_scene_scores(path: Path, duration: float) -> dict[int, float]:
         return {}
     scores: dict[int, float] = {}
     # scdet writes one log entry for each detected transition.
-    pattern = re.compile(r"lavfi\\.scd\\.score:\\s*([0-9]+(?:\\.[0-9]+)?),\\s*lavfi\\.scd\\.time:\\s*([0-9]+(?:\\.[0-9]+)?)")
+    pattern = re.compile(r"lavfi\.scd\.score:\s*([0-9]+(?:\.[0-9]+)?),\s*lavfi\.scd\.time:\s*([0-9]+(?:\.[0-9]+)?)")
     for match in pattern.finditer(proc.stderr or ""):
         score = float(match.group(1))
         timestamp = float(match.group(2))
