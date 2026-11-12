@@ -4,6 +4,7 @@ from fastapi import HTTPException
 
 from app.main import (
     _KickMetaParser,
+    combine_moment_scores,
     validate_authorized_rtmp_url,
     validate_kick_clip_url,
     validate_kick_media_url,
@@ -79,6 +80,21 @@ class AuthorizedLiveFeedTests(unittest.TestCase):
         ):
             with self.subTest(url=url), self.assertRaises(HTTPException):
                 validate_authorized_rtmp_url(url)
+
+
+
+class HighlightScoringTests(unittest.TestCase):
+    def test_visual_scene_change_contributes_to_candidate_score(self):
+        scores = combine_moment_scores([10.0, 20.0, 12.0], {0: 0.8, 2: 1.0})
+        self.assertEqual(len(scores), 3)
+        self.assertGreater(scores[2], 0.0)
+        self.assertGreater(scores[1], scores[0])
+
+    def test_audio_only_fallback_is_supported(self):
+        scores = combine_moment_scores([1.0, 5.0, 2.0], {})
+        self.assertEqual(len(scores), 3)
+        self.assertAlmostEqual(scores[0], 0.0)
+        self.assertAlmostEqual(scores[1], 0.72)
 
 
 if __name__ == "__main__":
