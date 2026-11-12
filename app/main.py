@@ -145,8 +145,49 @@ def probe(path: Path) -> float:
         raise HTTPException(422, "Could not read video duration.")
 
 
+def detect_scene_scores(path: Path, duration: float) -> dict[int, float]:
+    """Return per-second visual scene-change scores. Fail open to audio-only ranking."""
+    timeout = min(900, max(60, int(duration * 2)))
+    try:
+        proc = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
+             "-vf", "select='gt(scene,0.25)',metadata=print:file=-", "-an", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=timeout, check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return {}
+    metadata = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    current_time = None
+    scores: dict[int, float] = {}
+    for line in metadata.splitlines():
+        time_match = re.search(r"pts_time:([0-9]+(?:\\.[0-9]+)?)", line)
+        if time_match:
+            current_time = float(time_match.group(1))
+        score_match = re.search(r"lavfi\\.scene_score=([0-9]+(?:\\.[0-9]+)?)", line)
+        if score_match and current_time is not None and 0 <= current_time < duration:
+            second = int(current_time)
+            scores[second] = max(scores.get(second, 0.0), float(score_match.group(1)))
+            current_time = None
+    return scores
+
+
+def combine_moment_scores(energies: list[float], scene_scores: dict[int, float]) -> list[float]:
+    """Combine normalized audio peaks and scene changes, without a paid ML service."""
+    if not energies:
+        return []
+    minimum, maximum = min(energies), max(energies)
+    energy_norm = [(value - minimum) / (maximum - minimum) if maximum > minimum else 0.0
+                   for value in energies]
+    scene_max = max(scene_scores.values(), default=0.0)
+    combined = []
+    for second, energy_score in enumerate(energy_norm):
+        visual_score = scene_scores.get(second, 0.0) / scene_max if scene_max > 0 else 0.0
+        combined.append(0.72 * energy_score + 0.28 * visual_score)
+    return combined
+
+
 def detect_moments(path: Path, duration: float) -> list[tuple[float, float]]:
-    # Decode mono audio to 8 kHz PCM; calculate one-second RMS windows.
+    # First pass: one-second mono audio RMS, then add an inexpensive FFmpeg scene-change signal.
     try:
         proc = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vn", "-ac", "1",
                                "-ar", "8000", "-f", "s16le", "pipe:1"],
@@ -169,8 +210,9 @@ def detect_moments(path: Path, duration: float) -> list[tuple[float, float]]:
         energies.append(rms)
     if not energies:
         return [(max(0, duration / 2 - CLIP_SECONDS / 2), min(CLIP_SECONDS, duration))]
-    # Rank energetic windows, spread candidates apart, and centre clips around peaks.
-    ranked = sorted(range(len(energies)), key=lambda i: energies[i], reverse=True)
+    scene_scores = detect_scene_scores(path, duration)
+    combined_scores = combine_moment_scores(energies, scene_scores)
+    ranked = sorted(range(len(combined_scores)), key=lambda i: combined_scores[i], reverse=True)
     chosen = []
     for idx in ranked:
         centre = float(idx)
@@ -184,11 +226,10 @@ def detect_moments(path: Path, duration: float) -> list[tuple[float, float]]:
         moments.append((start, min(CLIP_SECONDS, duration - start)))
     return moments
 
-
 def render_clip(source: Path, target: Path, start: float, length: float):
     run(["ffmpeg", "-y", "-ss", f"{start:.2f}", "-i", str(source), "-t", f"{length:.2f}",
-         "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+         "-filter_complex", "[0:v]split=2[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[bg];[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]",
+         "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
          "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(target)], timeout=3600)
 
 
