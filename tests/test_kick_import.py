@@ -2,7 +2,12 @@ import unittest
 
 from fastapi import HTTPException
 
-from app.main import _KickMetaParser, validate_kick_clip_url, validate_kick_media_url
+from app.main import (
+    _KickMetaParser,
+    validate_authorized_rtmp_url,
+    validate_kick_clip_url,
+    validate_kick_media_url,
+)
 
 
 class KickImportValidationTests(unittest.TestCase):
@@ -55,6 +60,25 @@ class KickImportValidationTests(unittest.TestCase):
         )
         self.assertIn("Squad wipe", parser.meta["og:title"])
         self.assertTrue(parser.meta["og:video"].endswith("/playlist.m3u8"))
+
+
+
+class AuthorizedLiveFeedTests(unittest.TestCase):
+    def test_accepts_rtmp_feed_and_masks_stream_key_in_descriptor(self):
+        url, descriptor = validate_authorized_rtmp_url("rtmps://media.example:443/live/private-key")
+        self.assertEqual(url, "rtmps://media.example:443/live/private-key")
+        self.assertEqual(descriptor, "rtmps://media.example:443")
+        self.assertNotIn("private-key", descriptor)
+
+    def test_rejects_watch_pages_and_unsupported_schemes(self):
+        for url in (
+            "https://www.youtube.com/watch?v=abc",
+            "https://kick.com/3rdcollector",
+            "rtsp://media.example/live/key",
+            "rtmp://user:password@media.example/live/key",
+        ):
+            with self.subTest(url=url), self.assertRaises(HTTPException):
+                validate_authorized_rtmp_url(url)
 
 
 if __name__ == "__main__":
