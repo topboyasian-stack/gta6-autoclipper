@@ -445,10 +445,179 @@ def import_kick(clip_url: str = Form(...), creator: str = Form("3rdcollector"),
     return result
 
 
+@app.post("/api/live/start")
+def start_live_capture(stream_url: str = Form(...), creator: str = Form(...),
+                       rights_basis: str = Form(...), segment_seconds: int = Form(120)):
+    basis = rights_text(rights_basis)
+    safe_url, descriptor = validate_authorized_rtmp_url(stream_url)
+    if not creator.strip():
+        raise HTTPException(400, "Enter the streamer or channel name.")
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        raise HTTPException(500, "Install FFmpeg and ffprobe before starting a live capture.")
+    segment_seconds = max(30, min(300, int(segment_seconds)))
+    session_id = uuid.uuid4().hex
+    source_id = uuid.uuid4().hex
+    segment_dir = LIVE_DIR / session_id
+    segment_dir.mkdir(parents=True, exist_ok=True)
+    safe_creator = re.sub(r"[^A-Za-z0-9._-]", "_", creator.strip())[:60] or "authorized_stream"
+    source_name = f"live_{safe_creator}_{session_id[:8]}"
+    with db() as con:
+        con.execute("INSERT INTO sources(id,filename,path,creator,source_url,rights_basis) VALUES(?,?,?,?,?,?)",
+                    (source_id, source_name, str(segment_dir), creator.strip(), descriptor, basis))
+        con.execute("INSERT INTO live_sessions(id,source_id,creator,source_descriptor,segment_seconds,status) VALUES(?,?,?,?,?,'recording')",
+                    (session_id, source_id, creator.strip(), descriptor, segment_seconds))
+    stop_event = threading.Event()
+    thread = threading.Thread(target=_live_worker,
+                              args=(session_id, source_id, safe_url, segment_dir, segment_seconds, stop_event),
+                              daemon=True, name=f"live-clip-{session_id[:8]}")
+    with _live_lock:
+        _live_sessions[session_id] = {"thread": thread, "stop_event": stop_event, "process": None}
+    thread.start()
+    return {"session_id": session_id, "status": "recording", "source": descriptor,
+            "segment_seconds": segment_seconds, "message": "Capture started. Closed segments will be processed into review candidates."}
+
+
+@app.get("/api/live")
+def list_live_sessions():
+    with db() as con:
+        rows = con.execute("SELECT id,creator,source_descriptor,segment_seconds,status,error,created_at,stopped_at FROM live_sessions ORDER BY created_at DESC LIMIT 25").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.post("/api/live/{session_id}/stop")
+def stop_live_capture(session_id: str):
+    with _live_lock:
+        session = _live_sessions.get(session_id)
+        if not session:
+            with db() as con:
+                row = con.execute("SELECT status FROM live_sessions WHERE id=?", (session_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Live capture session not found.")
+            if row["status"] in {"stopped", "error", "interrupted"}:
+                return {"session_id": session_id, "status": row["status"]}
+            raise HTTPException(409, "This capture is no longer active in this app process.")
+        session["stop_event"].set()
+        process = session.get("process")
+        if process and process.poll() is None:
+            process.terminate()
+    return {"session_id": session_id, "status": "stopping", "message": "Stopping the feed and processing the last closed segments."}
+
+
+@app.get("/api/youtube/status")
+def youtube_status():
+    connected = get_youtube_credentials() is not None
+    return {"configured": youtube_client_secrets_configured(), "connected": connected,
+            "privacy_default": "private", "publishing": "manual_only"}
+
+
+@app.get("/youtube/connect")
+def youtube_connect():
+    if not youtube_client_secrets_configured():
+        raise HTTPException(503, "YouTube OAuth setup is missing. Save your Google OAuth client JSON as data/client_secrets.json (or set YOUTUBE_CLIENT_SECRETS) and configure the redirect URI http://localhost:8000/youtube/oauth/callback.")
+    try:
+        from google_auth_oauthlib.flow import Flow
+        state = uuid.uuid4().hex
+        flow = Flow.from_client_secrets_file(str(YOUTUBE_CLIENT_SECRETS), scopes=YOUTUBE_SCOPES,
+                                             redirect_uri=YOUTUBE_REDIRECT_URI)
+        auth_url, _ = flow.authorization_url(access_type="offline", include_granted_scopes="true",
+                                              prompt="consent", state=state)
+        _youtube_oauth_states.add(state)
+        return RedirectResponse(auth_url, status_code=302)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, f"Could not start YouTube OAuth: {exc}") from exc
+
+
+@app.get("/youtube/oauth/callback", response_class=HTMLResponse)
+def youtube_oauth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    if error:
+        return HTMLResponse("<h2>YouTube connection was cancelled</h2><p>You can close this tab and return to AutoClipper.</p>", status_code=400)
+    if not state or state not in _youtube_oauth_states or not code:
+        raise HTTPException(400, "OAuth state or authorization code is missing or invalid. Start Connect YouTube again.")
+    _youtube_oauth_states.discard(state)
+    try:
+        from google_auth_oauthlib.flow import Flow
+        flow = Flow.from_client_secrets_file(str(YOUTUBE_CLIENT_SECRETS), scopes=YOUTUBE_SCOPES,
+                                             state=state, redirect_uri=YOUTUBE_REDIRECT_URI)
+        flow.fetch_token(authorization_response=str(request.url))
+        DATA.mkdir(parents=True, exist_ok=True)
+        YOUTUBE_TOKEN_FILE.write_text(flow.credentials.to_json(), encoding="utf-8")
+        return RedirectResponse("/", status_code=303)
+    except Exception as exc:
+        raise HTTPException(400, f"YouTube authorization failed: {exc}") from exc
+
+
+@app.post("/api/clips/{clip_id}/youtube-upload")
+def youtube_upload_clip(clip_id: str, payload: dict):
+    with db() as con:
+        row = con.execute("""SELECT c.*,s.filename,s.creator,s.source_url,s.rights_basis
+                             FROM clips c JOIN sources s ON s.id=c.source_id WHERE c.id=?""", (clip_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Clip not found.")
+    if row["status"] != "approved":
+        raise HTTPException(409, "Approve the clip in the review queue before uploading it.")
+    if row["youtube_video_id"]:
+        raise HTTPException(409, "This clip has already been uploaded to YouTube.")
+    path = Path(row["path"])
+    if not path.is_file():
+        raise HTTPException(404, "The rendered clip file is missing.")
+    title = str(payload.get("title") or (Path(row["filename"]).stem + " #Shorts")).strip()[:100]
+    description = str(payload.get("description") or "Gaming highlight. #shorts #gaming").strip()[:5000]
+    if not title:
+        raise HTTPException(400, "Enter a YouTube title.")
+    if not row["rights_basis"] or len(row["rights_basis"].strip()) < 8:
+        raise HTTPException(403, "The source has no recorded rights basis.")
+    try:
+        from googleapiclient.http import MediaFileUpload
+        youtube = youtube_service_or_error()
+        response = youtube.videos().insert(
+            part="snippet,status",
+            body={"snippet": {"title": title, "description": description, "categoryId": "20",
+                              "tags": ["gaming", "shorts"]},
+                  "status": {"privacyStatus": "private"}},
+            media_body=MediaFileUpload(str(path), mimetype="video/mp4", resumable=True),
+        ).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"YouTube upload failed: {exc}") from exc
+    video_id = response.get("id")
+    if not video_id:
+        raise HTTPException(502, "YouTube did not return a video ID.")
+    with db() as con:
+        con.execute("UPDATE clips SET youtube_video_id=? WHERE id=?", (video_id, clip_id))
+    return {"clip_id": clip_id, "video_id": video_id, "privacy_status": "private",
+            "url": f"https://www.youtube.com/watch?v={video_id}"}
+
+
+@app.post("/api/clips/{clip_id}/youtube-publish")
+def youtube_publish_clip(clip_id: str):
+    with db() as con:
+        row = con.execute("SELECT status,youtube_video_id FROM clips WHERE id=?", (clip_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Clip not found.")
+    if row["status"] != "approved" or not row["youtube_video_id"]:
+        raise HTTPException(409, "Approve and upload this clip privately before publishing it.")
+    try:
+        youtube = youtube_service_or_error()
+        youtube.videos().update(
+            part="status", body={"id": row["youtube_video_id"], "status": {"privacyStatus": "public"}}
+        ).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"Could not publish the YouTube video: {exc}") from exc
+    with db() as con:
+        con.execute("UPDATE clips SET status='published' WHERE id=?", (clip_id,))
+    return {"clip_id": clip_id, "video_id": row["youtube_video_id"], "status": "published",
+            "url": f"https://www.youtube.com/watch?v={row['youtube_video_id']}"}
+
+
 @app.get("/api/clips")
 def list_clips(status: Optional[str] = None):
     with db() as con:
-        if status in {"pending", "approved", "rejected"}:
+        if status in {"pending", "approved", "rejected", "published"}:
             rows = con.execute("""SELECT c.*,s.filename,s.creator,s.source_url
                 FROM clips c JOIN sources s ON s.id=c.source_id WHERE c.status=?
                 ORDER BY c.created_at DESC""", (status,)).fetchall()
