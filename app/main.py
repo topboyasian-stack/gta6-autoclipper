@@ -9,12 +9,9 @@ import subprocess
 import threading
 import time
 import uuid
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request as URLRequest, urlopen
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
