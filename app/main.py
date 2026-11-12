@@ -502,6 +502,8 @@ def stop_live_capture(session_id: str):
                 return {"session_id": session_id, "status": row["status"]}
             raise HTTPException(409, "This capture is no longer active in this app process.")
         session["stop_event"].set()
+        with db() as con:
+            con.execute("UPDATE live_sessions SET status='stopping' WHERE id=? AND status='recording'", (session_id,))
         process = session.get("process")
         if process and process.poll() is None:
             process.terminate()
