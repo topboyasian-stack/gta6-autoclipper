@@ -40,7 +40,7 @@ ALLOWED = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 KICK_PAGE_HOSTS = {"kick.com", "www.kick.com"}
 KICK_MEDIA_HOST = "clips.kick.com"
 
-app = FastAPI(title="GTA 6 AutoClipper", version="0.2.0")
+app = FastAPI(title="GTA 6 AutoClipper", version="0.3.0")
 app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
 
 
@@ -425,7 +425,10 @@ def home():
 @app.get("/api/health")
 def health():
     return {"ok": True, "ffmpeg": shutil.which("ffmpeg") is not None,
-            "ffprobe": shutil.which("ffprobe") is not None, "publishing": "disabled"}
+            "ffprobe": shutil.which("ffprobe") is not None,
+            "youtube_oauth_configured": youtube_client_secrets_configured(),
+            "youtube_connected": get_youtube_credentials() is not None,
+            "publishing": "manual_only_private_by_default"}
 
 
 @app.post("/api/upload")
