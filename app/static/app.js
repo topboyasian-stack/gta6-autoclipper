@@ -129,7 +129,7 @@ async function load(){
       const title=document.createElement('strong');title.textContent=x.filename+' · '+Math.round(x.start)+'s';
       const info=document.createElement('p');info.textContent=(x.creator||'Source not named')+' · '+x.status.toUpperCase();
       el.append(video,title,info);
-      if(x.source_url){const source=document.createElement('a');source.href=x.source_url;source.textContent='Open source';source.target='_blank';source.rel='noopener noreferrer';source.className='source-link';el.append(source)}
+      if(x.source_url&&x.source_url.startsWith('https://')){const source=document.createElement('a');source.href=x.source_url;source.textContent='Open source';source.target='_blank';source.rel='noopener noreferrer';source.className='source-link';el.append(source)}
       if(x.status==='pending'){
         const actions=document.createElement('div');actions.className='actions';
         const yes=document.createElement('button');yes.textContent='Approve';yes.onclick=()=>decide(x.id,'approved');
