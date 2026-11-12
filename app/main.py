@@ -6,6 +6,8 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import threading
+import time
 import uuid
 from html.parser import HTMLParser
 from pathlib import Path
@@ -14,8 +16,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,6 +27,12 @@ CLIPS = DATA / "clips"
 for folder in (DATA, UPLOADS, CLIPS):
     folder.mkdir(parents=True, exist_ok=True)
 DB = DATA / "clipper.sqlite3"
+YOUTUBE_CLIENT_SECRETS = Path(os.getenv("YOUTUBE_CLIENT_SECRETS", str(DATA / "client_secrets.json")))
+YOUTUBE_TOKEN_FILE = DATA / "youtube-token.json"
+YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI", "http://localhost:8000/youtube/oauth/callback")
+YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+LIVE_DIR = DATA / "live"
+LIVE_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "1024"))
 CLIP_SECONDS = max(10, min(90, int(os.getenv("CLIP_SECONDS", "35"))))
 MAX_CANDIDATES = max(1, min(20, int(os.getenv("MAX_CANDIDATES", "8"))))
@@ -52,7 +60,18 @@ def init_db():
             id TEXT PRIMARY KEY, source_id TEXT NOT NULL, start REAL NOT NULL,
             duration REAL NOT NULL, score REAL NOT NULL, path TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            youtube_video_id TEXT,
             FOREIGN KEY(source_id) REFERENCES sources(id))""")
+        columns = {row["name"] for row in con.execute("PRAGMA table_info(clips)")}
+        if "youtube_video_id" not in columns:
+            con.execute("ALTER TABLE clips ADD COLUMN youtube_video_id TEXT")
+        con.execute("""CREATE TABLE IF NOT EXISTS live_sessions (
+            id TEXT PRIMARY KEY, source_id TEXT NOT NULL, creator TEXT NOT NULL,
+            source_descriptor TEXT NOT NULL, segment_seconds INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'recording', error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, stopped_at TEXT,
+            FOREIGN KEY(source_id) REFERENCES sources(id))""")
+        con.execute("UPDATE live_sessions SET status='interrupted', stopped_at=CURRENT_TIMESTAMP WHERE status='recording'")
 
 
 init_db()
