@@ -24,6 +24,12 @@ For older videos from your own YouTube channel, download your own source with Yo
 - FFmpeg and ffprobe installed and available on PATH
 - A Google Cloud OAuth client JSON for YouTube publishing (optional until you are ready to connect the channel)
 
+## No Linux on your Chromebook? Use Google Colab
+
+Open the [browser-only AutoClipper notebook](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb). It runs the processor in a temporary Google-hosted notebook, so you don't install Python or FFmpeg on ChromeOS. The notebook accepts a local file upload or a file in Google Drive, previews candidates, asks you to approve each one, and downloads a ZIP of selected clips plus attribution metadata. You then upload approved MP4s manually in YouTube Studio, ideally as Private first.
+
+This is an on-demand workaround, not a 24/7 service. Free Colab resources are limited and can terminate; the notebook does not monitor live streams or automatically publish to YouTube. See [the fan-clipping and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
+
 ## Run locally
 
 From this repository folder:
