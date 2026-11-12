@@ -7,11 +7,15 @@ import shutil
 import sqlite3
 import subprocess
 import uuid
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,8 +29,10 @@ MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "1024"))
 CLIP_SECONDS = max(10, min(90, int(os.getenv("CLIP_SECONDS", "35"))))
 MAX_CANDIDATES = max(1, min(20, int(os.getenv("MAX_CANDIDATES", "8"))))
 ALLOWED = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
+KICK_PAGE_HOSTS = {"kick.com", "www.kick.com"}
+KICK_MEDIA_HOST = "clips.kick.com"
 
-app = FastAPI(title="GTA 6 AutoClipper", version="0.1.0")
+app = FastAPI(title="GTA 6 AutoClipper", version="0.2.0")
 app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
 
 
@@ -119,6 +125,109 @@ def render_clip(source: Path, target: Path, start: float, length: float):
          "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(target)], timeout=3600)
 
 
+class _KickMetaParser(HTMLParser):
+    """Read only the public Open Graph metadata needed to resolve a Kick clip."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.meta: dict[str, str] = {}
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "meta":
+            return
+        values = {str(k).lower(): str(v) for k, v in attrs if k and v is not None}
+        key = (values.get("property") or values.get("name") or "").lower()
+        value = values.get("content", "").strip()
+        if key and value:
+            self.meta[key] = value
+
+
+def validate_kick_clip_url(clip_url: str) -> tuple[str, str, str]:
+    """Allow only canonical public Kick clip pages, not arbitrary URLs or VODs."""
+    try:
+        parsed = urlsplit(clip_url.strip())
+        port = parsed.port
+    except ValueError:
+        raise HTTPException(400, "Enter a valid Kick clip URL.")
+    if (parsed.scheme.lower() != "https" or parsed.hostname not in KICK_PAGE_HOSTS
+            or parsed.username or parsed.password or port not in (None, 443)):
+        raise HTTPException(400, "Use an HTTPS clip page from kick.com.")
+    match = re.fullmatch(r"/([A-Za-z0-9_]+)/clips/(clip_[A-Za-z0-9]+)", parsed.path.rstrip("/"))
+    if not match:
+        raise HTTPException(400, "Paste a public Kick clip URL, not a channel page or full VOD link.")
+    channel, clip_id = match.groups()
+    canonical = f"https://kick.com/{channel}/clips/{clip_id}"
+    return canonical, channel, clip_id
+
+
+def validate_kick_media_url(media_url: str, clip_id: str) -> str:
+    """Prevent a clip page from redirecting FFmpeg to an unrelated host."""
+    try:
+        parsed = urlsplit(media_url)
+        port = parsed.port
+    except ValueError:
+        raise HTTPException(422, "Kick did not provide a valid media URL.")
+    if (parsed.scheme.lower() != "https" or parsed.hostname != KICK_MEDIA_HOST
+            or parsed.username or parsed.password or port not in (None, 443)):
+        raise HTTPException(422, "Kick returned an unexpected media host; import stopped for safety.")
+    match = re.fullmatch(r"/clips/[A-Za-z0-9]{2}/(clip_[A-Za-z0-9]+)/playlist\.m3u8", parsed.path)
+    if not match or match.group(1) != clip_id:
+        raise HTTPException(422, "Kick's playlist did not match the requested clip.")
+    return media_url
+
+
+def resolve_kick_clip(clip_page_url: str, clip_id: str) -> tuple[str, str]:
+    """Get a public clip's HLS URL from Kick's page metadata without login or cookies."""
+    request = Request(clip_page_url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; GTA6AutoClipper/0.2; public-clip-import)",
+        "Accept": "text/html,application/xhtml+xml",
+    })
+    try:
+        with urlopen(request, timeout=20) as response:
+            final_url = urlsplit(response.geturl())
+            if final_url.scheme != "https" or final_url.hostname not in KICK_PAGE_HOSTS:
+                raise HTTPException(422, "Kick redirected outside its public site; import stopped for safety.")
+            html = response.read(3 * 1024 * 1024 + 1)
+    except HTTPException:
+        raise
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        raise HTTPException(422, f"Could not read that public Kick clip page: {exc}") from exc
+    if len(html) > 3 * 1024 * 1024:
+        raise HTTPException(422, "Kick clip page was unexpectedly large; import stopped.")
+    parser = _KickMetaParser()
+    parser.feed(html.decode("utf-8", "replace"))
+    media_url = parser.meta.get("og:video", "")
+    title = parser.meta.get("og:title", clip_id)
+    if not media_url:
+        raise HTTPException(422, "No public video playlist was found. Check the clip is available without signing in.")
+    return validate_kick_media_url(media_url, clip_id), title
+
+
+def create_candidates(source_id: str, source_path: Path) -> dict:
+    duration = probe(source_path)
+    if duration <= 0:
+        raise HTTPException(422, "The source video has no readable duration.")
+    moments = detect_moments(source_path, duration)
+    made = 0
+    for start, length in moments:
+        if length <= 0:
+            continue
+        clip_id = uuid.uuid4().hex
+        clip_path = CLIPS / f"{clip_id}.mp4"
+        render_clip(source_path, clip_path, start, length)
+        with db() as con:
+            con.execute("INSERT INTO clips(id,source_id,start,duration,score,path) VALUES(?,?,?,?,?,?)",
+                        (clip_id, source_id, start, length, 0.0, str(clip_path)))
+        made += 1
+    return {"source_id": source_id, "filename": source_path.name, "duration": duration, "candidates_created": made}
+
+
+def rights_text(value: str):
+    if len(value.strip()) < 8:
+        raise HTTPException(400, "Describe why you have permission to use this footage.")
+    return value.strip()
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
@@ -136,8 +245,7 @@ async def upload(file: UploadFile = File(...), creator: str = Form(""),
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in ALLOWED:
         raise HTTPException(415, "Upload MP4, MOV, MKV, WebM or M4V footage.")
-    if len(rights_basis.strip()) < 8:
-        raise HTTPException(400, "Describe why you have permission to use this footage.")
+    basis = rights_text(rights_basis)
     source_id = uuid.uuid4().hex
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", Path(file.filename or "footage").name)[:100]
     target = UPLOADS / f"{source_id}_{safe_name}"
@@ -154,24 +262,45 @@ async def upload(file: UploadFile = File(...), creator: str = Form(""),
         raise
     with db() as con:
         con.execute("INSERT INTO sources(id,filename,path,creator,source_url,rights_basis) VALUES(?,?,?,?,?,?)",
-                    (source_id, safe_name, str(target), creator.strip(), source_url.strip(), rights_basis.strip()))
+                    (source_id, safe_name, str(target), creator.strip(), source_url.strip(), basis))
+    return create_candidates(source_id, target)
+
+
+@app.post("/api/import-kick")
+def import_kick(clip_url: str = Form(...), creator: str = Form("3rdcollector"),
+                rights_basis: str = Form(...)):
+    """Import one public Kick clip directly; no account cookies or login are used."""
+    basis = rights_text(rights_basis)
+    clip_page_url, channel, clip_id = validate_kick_clip_url(clip_url)
+    media_url, title = resolve_kick_clip(clip_page_url, clip_id)
+    source_id = uuid.uuid4().hex
+    base_name = re.sub(r"[^A-Za-z0-9._-]", "_", title).strip("._-")[:80] or clip_id
+    safe_name = f"{base_name}_{clip_id}.mp4"
+    target = UPLOADS / f"{source_id}_{safe_name}"
     try:
-        duration = probe(target)
-        moments = detect_moments(target, duration)
-        made = 0
-        for start, length in moments:
-            clip_id = uuid.uuid4().hex
-            clip_path = CLIPS / f"{clip_id}.mp4"
-            render_clip(target, clip_path, start, length)
-            score = 0.0
-            with db() as con:
-                con.execute("INSERT INTO clips(id,source_id,start,duration,score,path) VALUES(?,?,?,?,?,?)",
-                            (clip_id, source_id, start, length, score, str(clip_path)))
-            made += 1
-        return {"source_id": source_id, "duration": duration, "candidates_created": made}
+        # Kick clips are at most three minutes. Remux first; transcode only if needed.
+        try:
+            run(["ffmpeg", "-y", "-i", media_url, "-t", "180", "-c", "copy",
+                 "-movflags", "+faststart", str(target)], timeout=600)
+        except HTTPException as exc:
+            target.unlink(missing_ok=True)
+            if exc.status_code != 422:
+                raise
+            run(["ffmpeg", "-y", "-i", media_url, "-t", "180", "-c:v", "libx264",
+                 "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "128k",
+                 "-movflags", "+faststart", str(target)], timeout=600)
+        if not target.exists() or target.stat().st_size == 0:
+            raise HTTPException(422, "Kick's clip downloaded as an empty file.")
     except Exception:
-        # Preserve the source record for diagnosis; never silently publish.
+        target.unlink(missing_ok=True)
         raise
+    with db() as con:
+        con.execute("INSERT INTO sources(id,filename,path,creator,source_url,rights_basis) VALUES(?,?,?,?,?,?)",
+                    (source_id, safe_name, str(target), creator.strip() or channel, clip_page_url, basis))
+    result = create_candidates(source_id, target)
+    result["filename"] = safe_name
+    result["source_url"] = clip_page_url
+    return result
 
 
 @app.get("/api/clips")
