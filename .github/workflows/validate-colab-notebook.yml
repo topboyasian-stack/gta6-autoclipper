@@ -1,0 +1,25 @@
+name: Validate Colab production notebook
+
+on:
+  push:
+    branches:
+      - main
+      - feature/universal-colab-production-studio
+  pull_request:
+    paths:
+      - notebooks/GTA6_AutoClipper_Browser_Only.ipynb
+      - scripts/validate_colab_notebook.py
+      - .github/workflows/validate-colab-notebook.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate notebook structure and Python syntax
+        run: python scripts/validate_colab_notebook.py

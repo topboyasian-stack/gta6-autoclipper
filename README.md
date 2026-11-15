@@ -26,9 +26,9 @@ For older videos from your own YouTube channel, download your own source with Yo
 
 ## No Linux on your Chromebook? Use Google Colab
 
-Open the [browser-only AutoClipper notebook](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb). It runs the processor in a temporary Google-hosted notebook, so you don't install Python or FFmpeg on ChromeOS. The notebook accepts a local file upload or a file in Google Drive, previews candidates, asks you to approve each one, and downloads a ZIP of selected clips plus attribution metadata. You then upload approved MP4s manually in YouTube Studio, ideally as Private first.
+Open the [Universal Colab Production Studio](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/feature/universal-colab-production-studio/notebooks/GTA6_AutoClipper_Browser_Only.ipynb). It is one notebook with selectable modes for gaming highlights, AI-generated scene assembly, long-form videos, and multi-clip compilations. Choose vertical 9:16 or horizontal 16:9 output, review the result, and export a ZIP with video and YouTube metadata. The first run can upload files once or read a Google Drive folder; later sessions can reuse the saved project sources without uploading again.
 
-This is an on-demand workaround, not a 24/7 service. Free Colab resources are limited and can terminate; the notebook does not monitor live streams or automatically publish to YouTube. See [the fan-clipping and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
+This is an on-demand Colab workflow, not a 24/7 service. Google Colab runtimes are temporary and may terminate, so the project saves source files, checkpoints, and exports in Google Drive. The notebook does not scrape arbitrary watch pages or publish automatically. See the [Colab Production Studio guide](docs/COLAB_PRODUCTION_STUDIO.md) and [fan-clipping and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
 
 ## Run locally
 
