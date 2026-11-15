@@ -505,6 +505,7 @@ def write_engineering_export_notes(project_dir: Path, final_video: Path, manifes
     caption_qc = json.loads(caption_qc_path.read_text(encoding="utf-8")) if caption_qc_path.exists() else {}
     music_credit = str(music_license.get("attribution", "")).strip()
     music_license_url = str(music_license.get("license_url", "")).strip()
+    music_changes = str(music_license.get("changes_made", "Trimmed or looped to fit and mixed under narration.")).strip()
     notes = [
         f"Suggested title: {brief['episode_title']} #Shorts",
         "",
@@ -516,6 +517,7 @@ def write_engineering_export_notes(project_dir: Path, final_video: Path, manifes
         "Music credit (required by the track licence):",
         music_credit,
         music_license_url,
+        f"Changes made to the track: {music_changes}",
         "",
         "Technical references used during research:",
         *[f"- {url}" for url in brief["source_references"]],
@@ -523,6 +525,8 @@ def write_engineering_export_notes(project_dir: Path, final_video: Path, manifes
         "Production and caption checks:",
         f"Voice engine: {narration_meta.get('tts_engine', 'Not recorded')}",
         f"Voice model: {narration_meta.get('voice_id', 'Not recorded')} ({narration_meta.get('voice_model_license', 'See project evidence')})",
+        f"Piper engine licence: {narration_meta.get('tts_engine_license', 'See project evidence')}",
+        "Voice model dataset licence and Piper engine software licence are separate; see the included MODEL_CARD and engine licence note.",
         f"Caption status: {caption_qc.get('status', 'Not recorded')}",
         f"Caption script match: {caption_qc.get('script_match_ratio', 'Not recorded')}",
         "Narration was generated from the saved episode script. Captions were generated from the rendered narration and checked against that script.",
