@@ -18,11 +18,25 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertEqual(notebook["nbformat"], 4)
         code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
         self.assertGreaterEqual(len(code_cells), 3)
-        full_source = "\\n".join("".join(c["source"]) if isinstance(c["source"], list) else c["source"] for c in notebook["cells"])
+        full_source = "\n".join("".join(c["source"]) if isinstance(c["source"], list) else c["source"] for c in notebook["cells"])
         self.assertIn("Animated engineering explainer", full_source)
         self.assertIn("render_engineering_episode", full_source)
         self.assertIn("episode_brief.json", full_source)
         self.assertIn("scene_manifest.csv", full_source)
+        self.assertIn("GEMINI_API_KEY", full_source)
+        self.assertIn("prepare_reusable_episode_assets", full_source)
+        self.assertIn("episode.srt", full_source)
+        self.assertIn("music_library", full_source)
+        self.assertIn("narration.wav", full_source)
+        pipeline_source = (ROOT / "app" / "reusable_production.py").read_text(encoding="utf-8")
+        self.assertIn("AUTO_VERIFIED", pipeline_source)
+        self.assertIn("create_automatic_episode_captions", pipeline_source)
+        self.assertIn("select_shared_music", pipeline_source)
+        self.assertIn("PiperVoice", pipeline_source)
+        self.assertIn("GEMINI_API_KEY", full_source)
+        self.assertIn("prepare_reusable_episode_assets", full_source)
+        self.assertIn("episode.srt", full_source)
+        self.assertIn("music_library", full_source)
         for index, cell in enumerate(code_cells):
             source = cell["source"]
             if isinstance(source, list):
