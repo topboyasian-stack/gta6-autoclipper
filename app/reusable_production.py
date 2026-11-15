@@ -45,16 +45,16 @@ VOICE_MODELS = {
 }
 
 DEFAULT_MUSIC = {
-    "filename": "New_Direction_CC_BY_3.0.mp3",
-    "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/New_Direction_(ISRC_USUAN1100677).mp3",
-    "title": "New Direction",
+    "filename": "How_it_Begins_CC_BY_3.0.mp3",
+    "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/How_it_Begins_(ISRC_USUAN1100200).mp3",
+    "title": "How it Begins",
     "artist": "Kevin MacLeod",
-    "source": "https://commons.wikimedia.org/wiki/File:New_Direction_(ISRC_USUAN1100677).mp3",
+    "source": "https://commons.wikimedia.org/wiki/File:How_it_Begins_(ISRC_USUAN1100200).mp3",
     "source_site": "incompetech.com",
     "license": "Creative Commons Attribution 3.0 Unported",
     "license_url": "https://creativecommons.org/licenses/by/3.0/",
     "attribution": (
-        "New Direction Kevin MacLeod (incompetech.com)\n"
+        "How it Begins Kevin MacLeod (incompetech.com)\n"
         "Licensed under Creative Commons: By Attribution 3.0 License\n"
         "https://creativecommons.org/licenses/by/3.0/"
     ),
