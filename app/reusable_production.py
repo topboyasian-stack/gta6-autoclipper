@@ -43,10 +43,7 @@ VOICE_MODELS = {
 
 DEFAULT_MUSIC = {
     "filename": "New_Direction_CC_BY_3.0.mp3",
-    "download_url": (
-        "https://upload.wikimedia.org/wikipedia/commons/1/1b/"
-        "New_Direction_%28ISRC_USUAN1100677%29.mp3"
-    ),
+    "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/New_Direction_(ISRC_USUAN1100677).mp3",
     "title": "New Direction",
     "artist": "Kevin MacLeod",
     "source": "https://commons.wikimedia.org/wiki/File:New_Direction_(ISRC_USUAN1100677).mp3",
@@ -59,9 +56,52 @@ DEFAULT_MUSIC = {
         "https://creativecommons.org/licenses/by/3.0/"
     ),
     "commercial_use": True,
-    "changes_made": "Trimmed, looped if required, and mixed at low volume under narration.",
-    "verification_source": "Wikimedia Commons file description and Incompetech track listing",
+    "changes_made": "Looped or trimmed to the episode duration and mixed quietly beneath narration.",
+    "verification_source": "Wikimedia Commons file description",
 }
+
+DEFAULT_MUSIC_TRACKS = [
+    DEFAULT_MUSIC,
+    {
+        "filename": "At_Launch_CC_BY_3.0.mp3",
+        "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/At_Launch_(ISRC_USUAN1100539).mp3",
+        "title": "At Launch",
+        "artist": "Kevin MacLeod",
+        "source": "https://commons.wikimedia.org/wiki/File:At_Launch_(ISRC_USUAN1100539).mp3",
+        "license": "Creative Commons Attribution 3.0 Unported",
+        "license_url": "https://creativecommons.org/licenses/by/3.0/",
+        "attribution": "At Launch Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 3.0 License\nhttps://creativecommons.org/licenses/by/3.0/",
+        "commercial_use": True,
+        "changes_made": "Looped or trimmed to the episode duration and mixed quietly beneath narration.",
+        "verification_source": "Wikimedia Commons file description",
+    },
+    {
+        "filename": "Cipher_CC_BY_3.0.mp3",
+        "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Cipher_(ISRC_USUAN1100844).mp3",
+        "title": "Cipher",
+        "artist": "Kevin MacLeod",
+        "source": "https://commons.wikimedia.org/wiki/File:Cipher_(ISRC_USUAN1100844).mp3",
+        "license": "Creative Commons Attribution 3.0 Unported",
+        "license_url": "https://creativecommons.org/licenses/by/3.0/",
+        "attribution": "Cipher Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 3.0 License\nhttps://creativecommons.org/licenses/by/3.0/",
+        "commercial_use": True,
+        "changes_made": "Looped or trimmed to the episode duration and mixed quietly beneath narration.",
+        "verification_source": "Wikimedia Commons file description",
+    },
+    {
+        "filename": "On_the_Passing_of_Time_CC_BY_3.0.mp3",
+        "download_url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/On_the_Passing_of_Time_(ISRC_USUAN1100520).mp3",
+        "title": "On the Passing of Time",
+        "artist": "Kevin MacLeod",
+        "source": "https://commons.wikimedia.org/wiki/File:On_the_Passing_of_Time_(ISRC_USUAN1100520).mp3",
+        "license": "Creative Commons Attribution 3.0 Unported",
+        "license_url": "https://creativecommons.org/licenses/by/3.0/",
+        "attribution": "On the Passing of Time Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 3.0 License\nhttps://creativecommons.org/licenses/by/3.0/",
+        "commercial_use": True,
+        "changes_made": "Looped or trimmed to the episode duration and mixed quietly beneath narration.",
+        "verification_source": "Wikimedia Commons file description",
+    },
+]
 
 
 
