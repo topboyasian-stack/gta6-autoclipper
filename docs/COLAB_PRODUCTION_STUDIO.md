@@ -86,7 +86,7 @@ This is a reusable episode engine, not a one-off notebook. Every episode receive
    - \`assets/voice_models/\` — a Piper voice model and its downloaded voice MODEL_CARD
    - \`assets/whisper_models/\` — the speech-recognition model cache
    - \`assets/music_library/\` — the seed CC BY music track and licence sidecar
-   Later episodes reuse these Drive assets. A Colab runtime may need the packages reinstalled after reconnecting; the large models/music are not downloaded again unless missing.
+   Later episodes reuse these Drive assets. The studio rotates among available licensed tracks for new episodes and keeps the chosen track when resuming an existing episode. A Colab runtime may need the packages reinstalled after reconnecting; the large models/music are not downloaded again unless missing.
 
 **Free-tier data notice:** Google says Gemini API free-tier content may be used to improve its products. Do not send private, confidential or sensitive material. Free tier has rate limits and is not unlimited. The studio uses Gemini text generation, not paid Google Search grounding.
 
@@ -119,9 +119,9 @@ To re-render an earlier episode, set the project ID to that episode's saved ID a
 
 ### Automatic assets and licences
 
-- **Voice:** Piper runs locally in Colab. The studio accepts the selected voice only when its downloaded MODEL_CARD confirms the CC0 training chain expected by the production configuration. The Piper engine is GPL-3.0-or-later; the voice-model dataset licence is separate. The engine and voice must not be confused as one licence.
+- **Voice:** Piper runs locally in Colab. The studio accepts Joe/Mike only when the downloaded MODEL_CARD confirms the CC0 rdh training chain, and uses a public-domain LJSpeech model as fallback when its own card confirms that status. The Piper engine is GPL-3.0-or-later; the voice-model dataset licence is separate. Piper notes that whether a trained model is legally a derivative of its training corpus is unsettled, so the included MODEL_CARD and engine licence note are preserved in each episode's evidence ZIP. This is not a blanket legal guarantee for all jurisdictions or uses.
 - **Captions:** Faster-Whisper produces word timestamps from the actual narration audio. The studio does not simply display the script and pretend it is a transcript. It checks the spoken transcript against the script before export.
-- **Music:** the shared library is seeded with “New Direction” by Kevin MacLeod, licensed under CC BY 3.0 on the tracked Wikimedia Commons file. Required attribution and the licence URL are inserted in the YouTube metadata. Additional tracks can be added only when their commercial-use rights and attribution are recorded.
+- **Music:** the shared library is seeded with multiple Kevin MacLeod tracks, each separately documented on Wikimedia Commons under CC BY 3.0. The studio rotates between available tracks for new episodes, records the source and licence, and inserts the required attribution, licence URL and modification note into the YouTube metadata. Additional tracks can be added only when their commercial-use rights and attribution are recorded.
 - **Flow scenes:** you remain responsible for checking the Google Flow terms that apply to your account and any third-party audio embedded in a scene. Mute scene audio when it is not cleared; the generated narration and licensed music remain in the mix.
 
 Official references:
