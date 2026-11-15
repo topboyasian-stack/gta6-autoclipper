@@ -62,6 +62,18 @@ DEFAULT_MUSIC = {
 }
 
 
+
+def _file_fingerprint(path: Path) -> str:
+    path = Path(path)
+    stat = path.stat()
+    return f"{path.name}:{stat.st_size}:{stat.st_mtime_ns}"
+
+
+def _json_fingerprint(payload: object) -> str:
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -460,7 +472,7 @@ def research_episode_topic(
         "Identify supported facts, important limits/conditions, common misconceptions, and which URLs support each fact. "
         "Do not invent measurements, statistics, capacities, prices or performance guarantees. "
         "Return JSON only with keys research_notes, important_caveats and unsupported_claims.\n"
-        f"Topic: {topic}\nViewer question: {engineering_question}\\n"
+        f"Topic: {topic}\nViewer question: {engineering_question}\n"
         f"Additional focus: {user_guidance or 'None'}\n\n"
         f"Retrieved source pages:\n{retrieved_pages}"
     )
@@ -528,7 +540,25 @@ def generate_episode_from_flow_scenes(
         ) from exc
 
     scene_files = sorted([Path(p) for p in scene_files], key=lambda p: _natural_key(p.name))
-    work = Path(project_dir) / "work" / "engineering"
+    project_dir = Path(project_dir)
+    storyboard_fingerprint = _json_fingerprint({
+        "scene_files": [_file_fingerprint(path) for path in scene_files],
+        "episode_title": episode_title,
+        "engineering_question": engineering_question,
+        "research_notes": research_notes,
+        "source_references": list(source_references),
+        "draft_script": draft_script,
+        "target_seconds": target_seconds,
+        "model": model,
+    })
+    existing_brief_path = project_dir / "episode_brief.json"
+    existing_manifest_path = project_dir / "scene_manifest.csv"
+    if existing_brief_path.exists() and existing_manifest_path.exists():
+        existing_brief = json.loads(existing_brief_path.read_text(encoding="utf-8"))
+        if existing_brief.get("storyboard_fingerprint") == storyboard_fingerprint:
+            existing_brief["storyboard_reused"] = True
+            return existing_brief
+    work = project_dir / "work" / "engineering"
     contact_sheet = _extract_scene_contact_sheet(scene_files, work / "flow_storyboard_contact_sheet.jpg")
     references = [str(url).strip() for url in source_references if str(url).strip().startswith(("https://", "http://"))]
     if not references:
@@ -566,7 +596,7 @@ Rules:
   "engineering_takeaway", "scene_manifest".
 - scene_manifest must be an array of objects with keys:
   "order", "scene_file", "scene_title", "visual_description", "engineering_explanation".
-- Keep scene_file exactly as listed here and keep the same order:
+- Keep each scene_file exactly as listed below, but you may order scenes into the most understandable real-world engineering sequence:
 {json.dumps([p.name for p in scene_files], ensure_ascii=False)}
 """
     client = genai.Client(api_key=gemini_api_key.strip())
@@ -606,6 +636,8 @@ Rules:
     result["source_references"] = references
     result["research_notes"] = research_notes
     result["storyboard_model"] = model
+    result["storyboard_fingerprint"] = storyboard_fingerprint
+    result["storyboard_reused"] = False
     result["storyboard_generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     result["script_generation_mode"] = "Gemini storyboard-assisted"
     _write_json(Path(project_dir) / "episode_brief.json", result)
@@ -757,8 +789,14 @@ def create_automatic_episode_captions(
     srt_path = captions_dir / "episode.srt"
     qc_path = captions_dir / "caption_qc.json"
     script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
+    audio_hash = hashlib.sha256(audio_path.read_bytes()).hexdigest()
     old_qc = json.loads(qc_path.read_text(encoding="utf-8")) if qc_path.exists() else {}
-    if old_qc.get("script_sha256") == script_hash and old_qc.get("model_size") == model_size and srt_path.exists():
+    if (
+        old_qc.get("script_sha256") == script_hash
+        and old_qc.get("audio_sha256") == audio_hash
+        and old_qc.get("model_size") == model_size
+        and srt_path.exists()
+    ):
         return {"srt": srt_path, "qc": qc_path, "details": old_qc, "reused": True}
 
     model_cache = Path(workspace) / "assets" / "whisper_models"
@@ -771,7 +809,6 @@ def create_automatic_episode_captions(
         word_timestamps=True,
         vad_filter=False,
         condition_on_previous_text=False,
-        initial_prompt=script[:350],
     )
     word_rows = []
     for segment in segments:
@@ -812,9 +849,11 @@ def create_automatic_episode_captions(
     srt_blocks = [block for block in srt_text.strip().split("\n\n") if block.strip()]
     timestamp_valid = all("-->" in block for block in srt_blocks)
     text_valid = all(len(block.splitlines()) >= 3 for block in srt_blocks)
+    confidence_valid = mean_probability is not None and mean_probability >= 0.45
     auto_verified = (
         similarity >= minimum_similarity
         and coverage >= 0.90
+        and confidence_valid
         and timestamp_valid
         and text_valid
     )
@@ -832,6 +871,8 @@ def create_automatic_episode_captions(
         "srt_text_valid": text_valid,
         "minimum_script_match_ratio": minimum_similarity,
         "script_sha256": script_hash,
+        "audio_sha256": audio_hash,
+        "confidence_valid": confidence_valid,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "review_note": (
             "Automated transcript-to-script and SRT-structure checks passed."
@@ -882,17 +923,32 @@ def prepare_reusable_episode_assets(
 
     research = None
     if auto_research:
-        research = research_episode_topic(
-            topic=episode_title or brief.get("episode_title", ""),
-            engineering_question=engineering_question or brief.get("engineering_question", ""),
-            gemini_api_key=gemini_api_key or "",
-            user_guidance=user_guidance,
-        )
-        research_notes = research["research_notes"]
-        source_references = [item["url"] for item in research["sources"]]
         research_dir = project_dir / "research"
         research_dir.mkdir(parents=True, exist_ok=True)
-        _write_json(research_dir / "research_report.json", research)
+        research_path = research_dir / "research_report.json"
+        requested_research = {
+            "topic": episode_title or brief.get("episode_title", ""),
+            "engineering_question": engineering_question or brief.get("engineering_question", ""),
+            "user_guidance": user_guidance,
+        }
+        request_hash = _json_fingerprint(requested_research)
+        cached_research = json.loads(research_path.read_text(encoding="utf-8")) if research_path.exists() else {}
+        if cached_research.get("request_fingerprint") == request_hash and len(cached_research.get("sources", [])) >= 2:
+            research = cached_research
+            research["reused"] = True
+        else:
+            research = research_episode_topic(
+                topic=requested_research["topic"],
+                engineering_question=requested_research["engineering_question"],
+                gemini_api_key=gemini_api_key or "",
+                user_guidance=user_guidance,
+            )
+            research["user_guidance"] = user_guidance
+            research["request_fingerprint"] = request_hash
+            research["reused"] = False
+            _write_json(research_path, research)
+        research_notes = research["research_notes"]
+        source_references = [item["url"] for item in research["sources"]]
         (research_dir / "source_notes.txt").write_text(
             research_notes + "\n\nIMPORTANT CAVEATS\n"
             + "\n".join(str(item) for item in research["important_caveats"])
