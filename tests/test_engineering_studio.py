@@ -129,7 +129,7 @@ class EngineeringStudioTests(unittest.TestCase):
 
             captions = folders["captions"] / "episode.srt"
             captions.write_text(
-                "1\\n00:00:00,000 --> 00:00:01,000\\nRain moves through the pavers\\n",
+                "1\n00:00:00,000 --> 00:00:01,000\nRain moves through the pavers\n",
                 encoding="utf-8",
             )
 
