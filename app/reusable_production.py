@@ -153,10 +153,26 @@ def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
     audio_path = library / DEFAULT_MUSIC["filename"]
     license_path = library / (audio_path.stem + ".license.json")
 
-    if not audio_path.exists() or audio_path.stat().st_size < 1_000_000:
-        _download(DEFAULT_MUSIC["download_url"], audio_path, min_bytes=1_000_000)
-    if not license_path.exists():
-        _write_json(license_path, DEFAULT_MUSIC)
+    has_registered_track = False
+    for sidecar in library.glob("*.license.json"):
+        try:
+            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        stem = sidecar.name.removesuffix(".license.json")
+        has_audio = any(
+            path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+            for path in library.glob(stem + ".*")
+        )
+        if has_audio and metadata.get("commercial_use") and metadata.get("license_url") and metadata.get("attribution"):
+            has_registered_track = True
+            break
+
+    if not has_registered_track:
+        if not audio_path.exists() or audio_path.stat().st_size < 1_000_000:
+            _download(DEFAULT_MUSIC["download_url"], audio_path, min_bytes=1_000_000)
+        if not license_path.exists():
+            _write_json(license_path, DEFAULT_MUSIC)
 
     return {"directory": library, "audio": audio_path, "license": license_path}
 
