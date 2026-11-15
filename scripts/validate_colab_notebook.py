@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+PIPELINE = ROOT / "app" / "reusable_production.py"
 README = ROOT / "README.md"
 GUIDE = ROOT / "docs" / "COLAB_PRODUCTION_STUDIO.md"
 LEGACY_ROOT_NOTEBOOK = ROOT / "GTA6_AutoClipper_GrowthReady.ipynb"
@@ -45,7 +46,6 @@ def main():
         "scene_manifest.csv",
         "narration.wav",
         "episode.srt",
-        "AUTO_VERIFIED",
         "music_license.json",
         "render_engineering_episode",
         "Google Drive",
@@ -60,6 +60,23 @@ def main():
     ]
     missing = [term for term in required if term not in all_source]
     assert not missing, f"Notebook is missing required workflow features: {missing}"
+
+    pipeline_source = PIPELINE.read_text(encoding="utf-8")
+    pipeline_required = [
+        "prepare_reusable_episode_assets",
+        "research_episode_topic",
+        "generate_episode_from_flow_scenes",
+        "synthesize_episode_narration",
+        "create_automatic_episode_captions",
+        "AUTO_VERIFIED",
+        "Faster-Whisper",
+        "select_shared_music",
+        "music_license.json",
+        "voice_MODEL_CARD.txt",
+    ]
+    missing_pipeline = [term for term in pipeline_required if term not in pipeline_source]
+    assert not missing_pipeline, f"Reusable production engine is missing features: {missing_pipeline}"
+
     assert code_count >= 4, "Expected setup, controls, source, processing and export code cells."
 
     assert COLAB_URL in README.read_text(encoding="utf-8"), "README must link to the canonical main-branch notebook."
