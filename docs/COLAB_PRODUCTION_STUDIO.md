@@ -16,7 +16,7 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | AI scene assembly | Two or more rendered AI scene videos | One assembled video |
 | Long-form video | One or more video files | One horizontal 16:9 video |
 | Multi-clip compilation | Two or more permitted clips | One assembled video |
-| Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with scene labels, optional narration/music, reviewed captions and evidence pack |
+| Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
 The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook does not generate AI scenes; it assembles scene videos generated elsewhere.
 
