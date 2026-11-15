@@ -807,6 +807,7 @@ def prepare_reusable_episode_assets(
     voice_id: str = "en_US-joe-medium",
     gemini_api_key: str | None = None,
     auto_storyboard: bool = True,
+    auto_research: bool = True,
     episode_title: str = "",
     engineering_question: str = "",
     research_notes: str = "",
@@ -815,34 +816,63 @@ def prepare_reusable_episode_assets(
     target_seconds: int = 65,
     whisper_model: str = "base.en",
     use_music: bool = True,
+    user_guidance: str = "",
 ) -> dict:
-    """Run the same per-episode narration, captions, and music steps on every new project."""
+    """Run the same research, storyboard, narration, caption-QA and licensed-music stages on every episode."""
     project_dir = Path(project_dir)
     scene_files = sorted([Path(p) for p in scene_files], key=lambda p: _natural_key(p.name))
     brief_path = project_dir / "episode_brief.json"
-    if auto_storyboard and gemini_api_key:
-        generate_episode_from_flow_scenes(
+    brief = json.loads(brief_path.read_text(encoding="utf-8")) if brief_path.exists() else {}
+
+    research = None
+    if auto_research:
+        research = research_episode_topic(
+            topic=episode_title or brief.get("episode_title", ""),
+            engineering_question=engineering_question or brief.get("engineering_question", ""),
+            gemini_api_key=gemini_api_key or "",
+            user_guidance=user_guidance,
+        )
+        research_notes = research["research_notes"]
+        source_references = [item["url"] for item in research["sources"]]
+        research_dir = project_dir / "research"
+        research_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(research_dir / "research_report.json", research)
+        (research_dir / "source_notes.txt").write_text(
+            research_notes + "\n\nIMPORTANT CAVEATS\n"
+            + "\n".join(str(item) for item in research["important_caveats"])
+            + "\n\nUNSUPPORTED CLAIMS\n"
+            + "\n".join(str(item) for item in research["unsupported_claims"])
+            + "\n",
+            encoding="utf-8",
+        )
+
+    if auto_storyboard:
+        if not research_notes.strip() or len(list(source_references)) < 2:
+            raise ValueError(
+                "Automatic script generation requires a verified technical fact pack and at least two fetched sources."
+            )
+        if not gemini_api_key:
+            raise ValueError("Add GEMINI_API_KEY to Google Colab Secrets to enable automatic research and scripting.")
+        generated = generate_episode_from_flow_scenes(
             project_dir=project_dir,
             scene_files=scene_files,
-            episode_title=episode_title,
-            engineering_question=engineering_question,
+            episode_title=episode_title or brief.get("episode_title", ""),
+            engineering_question=engineering_question or brief.get("engineering_question", ""),
             research_notes=research_notes,
             source_references=source_references,
             gemini_api_key=gemini_api_key,
             draft_script=draft_script,
             target_seconds=target_seconds,
         )
+        if research:
+            generated["research_report_path"] = str(project_dir / "research" / "research_report.json")
+            _write_json(brief_path, generated)
     elif draft_script.strip():
-        brief = json.loads(brief_path.read_text(encoding="utf-8"))
         brief["original_script"] = draft_script.strip()
         brief["script_generation_mode"] = "User-supplied original script"
-        if not brief.get("source_references"):
-            brief["source_references"] = [
-                str(url).strip() for url in source_references
-                if str(url).strip().startswith(("https://", "http://"))
-            ]
-        if not brief.get("engineering_takeaway"):
-            brief["engineering_takeaway"] = "See the episode script and technical research notes."
+        if research:
+            brief["source_references"] = [item["url"] for item in research["sources"]]
+            brief["research_notes"] = research["research_notes"]
         _write_json(brief_path, brief)
         (project_dir / "original_script.md").write_text(
             "# Original episode narration\n\n" + draft_script.strip() + "\n",
@@ -853,13 +883,50 @@ def prepare_reusable_episode_assets(
     script = str(brief.get("original_script", "")).strip()
     if len(_safe_words(script)) < 35:
         raise ValueError(
-            "No complete narration script is available. Add a Google AI Studio key once for automatic "
-            "scene-based writing, or supply an original script in the episode panel."
+            "No complete narration script is available. Add a Gemini API key to Colab Secrets "
+            "for automatic research and scripting."
         )
-    from app.engineering_studio import validate_episode_brief
+    from app.engineering_studio import validate_episode_brief, probe_media
     validate_episode_brief(brief_path)
 
+    # Calculate the available picture duration before narration so a generated script can fit the actual scene set.
+    scene_duration = sum(float(probe_media(path)["duration"]) for path in scene_files)
+    if scene_duration < 15:
+        raise ValueError("The Flow scene set is too short for an engineering explainer. Add more scene footage.")
+    fitted_target = max(15, min(178, int(scene_duration * 0.90)))
+
     narration = synthesize_episode_narration(project_dir, workspace, voice_id=voice_id)
+    import wave
+    with wave.open(str(narration["audio"]), "rb") as wav_file:
+        narration_duration = wav_file.getnframes() / max(1, wav_file.getframerate())
+
+    # One automatic correction pass prevents a narration cut-off without requiring user script editing.
+    if narration_duration > scene_duration + 0.75 and auto_storyboard:
+        generated = generate_episode_from_flow_scenes(
+            project_dir=project_dir,
+            scene_files=scene_files,
+            episode_title=episode_title or brief.get("episode_title", ""),
+            engineering_question=engineering_question or brief.get("engineering_question", ""),
+            research_notes=research_notes,
+            source_references=source_references,
+            gemini_api_key=gemini_api_key or "",
+            draft_script=brief.get("original_script", ""),
+            target_seconds=fitted_target,
+        )
+        if research:
+            generated["research_report_path"] = str(project_dir / "research" / "research_report.json")
+            _write_json(brief_path, generated)
+        narration = synthesize_episode_narration(project_dir, workspace, voice_id=voice_id)
+        with wave.open(str(narration["audio"]), "rb") as wav_file:
+            narration_duration = wav_file.getnframes() / max(1, wav_file.getframerate())
+
+    if narration_duration > scene_duration + 0.75:
+        raise ValueError(
+            f"The narration is {narration_duration:.1f}s but the Flow scenes total only "
+            f"{scene_duration:.1f}s. The studio shortened the script once automatically, but it still does not fit. "
+            "Add more scene footage or select longer Flow clips; the render will not cut off narration."
+        )
+
     captions = create_automatic_episode_captions(
         project_dir, workspace, model_size=whisper_model
     )
@@ -869,6 +936,10 @@ def prepare_reusable_episode_assets(
         "narration": narration,
         "captions": captions,
         "music": music,
+        "research": research,
+        "scene_duration_seconds": round(scene_duration, 2),
+        "narration_duration_seconds": round(narration_duration, 2),
+        "narration_fits_scene_duration": narration_duration <= scene_duration + 0.75,
         "story_mode": brief.get("script_generation_mode", "User-supplied original script"),
         "episode_title": brief.get("episode_title"),
         "auto_caption_status": captions["details"]["status"],
@@ -877,16 +948,19 @@ def prepare_reusable_episode_assets(
     _write_json(project_dir / "work" / "engineering" / "automatic_assets_report.json", {
         "episode_title": summary["episode_title"],
         "story_mode": summary["story_mode"],
+        "research": research,
         "narration": narration["details"],
         "captions": captions["details"],
         "music": music["metadata"] if music else None,
+        "scene_duration_seconds": summary["scene_duration_seconds"],
+        "narration_duration_seconds": summary["narration_duration_seconds"],
+        "narration_fits_scene_duration": summary["narration_fits_scene_duration"],
         "assets_reused": {
             "narration": narration["reused"],
             "captions": captions["reused"],
         },
     })
     return summary
-
 
 def _natural_key(name: str) -> list[tuple[int, object]]:
     return [(0, int(part)) if part.isdigit() else (1, part.lower()) for part in re.split(r"(\d+)", str(name))]
