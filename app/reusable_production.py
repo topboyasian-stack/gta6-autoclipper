@@ -255,6 +255,195 @@ def _extract_scene_contact_sheet(scene_files: Iterable[Path], output_path: Path)
     return output_path
 
 
+
+class _EpisodeResearchHTMLParser:
+    """Extract visible HTML text without installing a separate article-scraping package."""
+    from html.parser import HTMLParser as _HTMLParser
+
+    class Parser(_HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.parts = []
+            self.title_parts = []
+            self.in_title = False
+            self.skip_depth = 0
+
+        def handle_starttag(self, tag, attrs):
+            tag = tag.lower()
+            if tag in {"script", "style", "noscript", "svg", "nav", "footer", "header"}:
+                self.skip_depth += 1
+            if tag == "title":
+                self.in_title = True
+
+        def handle_endtag(self, tag):
+            tag = tag.lower()
+            if tag == "title":
+                self.in_title = False
+            if tag in {"script", "style", "noscript", "svg", "nav", "footer", "header"}:
+                self.skip_depth = max(0, self.skip_depth - 1)
+
+        def handle_data(self, data):
+            clean = re.sub(r"\\s+", " ", data).strip()
+            if not clean:
+                return
+            if self.in_title:
+                self.title_parts.append(clean)
+            if self.skip_depth == 0:
+                self.parts.append(clean)
+
+
+def _trusted_technical_url(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(str(url))
+    if parsed.scheme != "https" or not parsed.hostname:
+        return False
+    host = parsed.hostname.lower()
+    if host.endswith((".gov", ".edu", ".int")):
+        return True
+    trusted = {
+        "asce.org", "www.asce.org", "concrete.org", "www.concrete.org",
+        "usgbc.org", "www.usgbc.org", "iea.org", "www.iea.org",
+        "aia.org", "www.aia.org",
+    }
+    return host in trusted
+
+
+def fetch_verified_technical_sources(candidate_urls, max_pages: int = 5) -> list[dict]:
+    """Fetch and retain only accessible, text-bearing pages from trusted technical domains."""
+    from urllib.request import Request, urlopen
+    from urllib.parse import urlparse
+
+    verified = []
+    seen = set()
+    for raw_url in candidate_urls:
+        url = str(raw_url).strip()
+        if url in seen or not _trusted_technical_url(url):
+            continue
+        seen.add(url)
+        request = Request(
+            url,
+            headers={"User-Agent": "UniversalColabProductionStudio/1.0 (technical research)"},
+        )
+        try:
+            with urlopen(request, timeout=25) as response:
+                final_url = response.geturl()
+                content_type = response.headers.get("Content-Type", "").lower()
+                if not content_type.startswith("text/html") or not _trusted_technical_url(final_url):
+                    continue
+                raw = response.read(1_500_000)
+            parser = _EpisodeResearchHTMLParser.Parser()
+            parser.feed(raw.decode("utf-8", errors="replace"))
+            page_text = re.sub(r"\\s+", " ", " ".join(parser.parts)).strip()
+            if len(page_text) < 500:
+                continue
+            verified.append({
+                "title": " ".join(parser.title_parts).strip()[:240] or final_url,
+                "url": final_url,
+                "domain": urlparse(final_url).hostname or "",
+                "content_excerpt": page_text[:9000],
+                "verified_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        except Exception as exc:
+            continue
+        if len(verified) >= max_pages:
+            break
+
+    if len(verified) < 2:
+        raise RuntimeError(
+            "The studio could not fetch at least two credible technical pages for this topic. "
+            "No narration was generated. Narrow the topic or provide official .gov, .edu or engineering-body links."
+        )
+    return verified
+
+
+def research_episode_topic(
+    topic: str,
+    engineering_question: str,
+    gemini_api_key: str,
+    user_guidance: str = "",
+    model: str = "gemini-3.8-flash",
+) -> dict:
+    """Suggest source URLs, fetch them, then summarize only the verified page content."""
+    if not gemini_api_key or len(gemini_api_key.strip()) < 10:
+        raise ValueError("A Gemini API key saved in Colab Secrets is required for automatic episode research.")
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:
+        raise RuntimeError("google-genai is not installed. Run the production setup cell.") from exc
+
+    client = genai.Client(api_key=gemini_api_key.strip())
+    discover_prompt = (
+        "List 5 to 8 direct HTTPS URLs to authoritative technical sources for an educational engineering episode. "
+        "Prefer government science/engineering agencies, universities, established standards bodies, and recognized "
+        "professional engineering institutions. Avoid blogs, forums, social media, search-result pages, product pages "
+        "and Wikipedia. Do not invent a URL; if uncertain, omit it. Return JSON only with key candidate_source_urls "
+        "containing an array of URLs.\n"
+        f"Topic: {topic}\nViewer question: {engineering_question}\nAdditional focus: {user_guidance or 'None'}"
+    )
+    response = client.models.generate_content(
+        model=model,
+        contents=discover_prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.1,
+        ),
+    )
+    try:
+        candidates = json.loads(response.text).get("candidate_source_urls", [])
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("The research step did not return a valid list of technical source URLs.") from exc
+
+    verified = fetch_verified_technical_sources(candidates)
+    retrieved_pages = "\\n\\n".join(
+        f"SOURCE {index}: {item['title']}\\nURL: {item['url']}\\n"
+        f"RETRIEVED PAGE TEXT:\\n{item['content_excerpt']}"
+        for index, item in enumerate(verified, 1)
+    )
+    summary_prompt = (
+        "Prepare a technical fact pack for an original animated engineering explainer. "
+        "Use only the retrieved page text below for factual claims, not model memory. "
+        "Identify supported facts, important limits/conditions, common misconceptions, and which URLs support each fact. "
+        "Do not invent measurements, statistics, capacities, prices or performance guarantees. "
+        "Return JSON only with keys research_notes, important_caveats and unsupported_claims.\\n"
+        f"Topic: {topic}\\nViewer question: {engineering_question}\\n"
+        f"Additional focus: {user_guidance or 'None'}\\n\\n"
+        f"Retrieved source pages:\\n{retrieved_pages}"
+    )
+    summary_response = client.models.generate_content(
+        model=model,
+        contents=summary_prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.15,
+        ),
+    )
+    try:
+        summary = json.loads(summary_response.text)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("The research model did not return a valid technical fact pack.") from exc
+
+    research_notes = str(summary.get("research_notes", "")).strip()
+    if len(research_notes) < 100:
+        raise ValueError("The fetched technical pages did not produce a sufficiently detailed fact pack.")
+
+    return {
+        "topic": topic,
+        "engineering_question": engineering_question,
+        "model": model,
+        "research_notes": research_notes,
+        "important_caveats": summary.get("important_caveats", []),
+        "unsupported_claims": summary.get("unsupported_claims", []),
+        "sources": [
+            {"title": item["title"], "url": item["url"], "domain": item["domain"]}
+            for item in verified
+        ],
+        "source_retrieval": verified,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def generate_episode_from_flow_scenes(
     project_dir: Path,
     scene_files: Iterable[Path],
