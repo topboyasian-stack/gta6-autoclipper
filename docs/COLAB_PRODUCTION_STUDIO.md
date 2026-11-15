@@ -73,6 +73,8 @@ The notebook does not create AI scenes and does not publish automatically. Revie
 
 ## Animated Engineering Explainer mode
 
+The first original pilot and seven-scene Google Flow prompt pack are in [ENGINEERING_CHANNEL_PILOT.md](ENGINEERING_CHANNEL_PILOT.md).
+
 This is an original educational production workflow, not a clone of another channel. It is designed for an engineering topic where each episode explains a real problem, the design response, the relevant components, and the limits or trade-offs.
 
 ### Episode brief and source files
