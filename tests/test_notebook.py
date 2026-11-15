@@ -27,6 +27,12 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("prepare_reusable_episode_assets", full_source)
         self.assertIn("episode.srt", full_source)
         self.assertIn("music_library", full_source)
+        self.assertIn("narration.wav", full_source)
+        self.assertIn("AUTO_VERIFIED", full_source)
+        self.assertIn("GEMINI_API_KEY", full_source)
+        self.assertIn("prepare_reusable_episode_assets", full_source)
+        self.assertIn("episode.srt", full_source)
+        self.assertIn("music_library", full_source)
         for index, cell in enumerate(code_cells):
             source = cell["source"]
             if isinstance(source, list):
