@@ -84,6 +84,45 @@ class ReusableProductionTests(unittest.TestCase):
             self.assertEqual(selected["metadata"]["title"], "Original Ambient Bed")
             self.assertIn("Example Composer", selected["metadata"]["attribution"])
 
+
+    def test_music_rotation_happens_between_projects_but_not_on_rerun(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "assets" / "music_library"
+            files = []
+            for name, title in [("ambient.mp3", "Ambient"), ("uplifting.mp3", "Uplifting")]:
+                incoming = root / name
+                incoming.write_bytes(b"ID3" + name.encode("utf-8") * 2000)
+                register_music_track(
+                    library_dir=library,
+                    audio_file=incoming,
+                    title=title,
+                    artist="Example Composer",
+                    license_name="CC BY 4.0",
+                    license_url="https://creativecommons.org/licenses/by/4.0/",
+                    source_url=f"https://example.org/{name}",
+                    attribution=f"{title} by Example Composer — CC BY 4.0",
+                    commercial_use=True,
+                )
+                files.append(incoming)
+
+            episode_one = root / "projects" / "episode_one"
+            first = select_shared_music(root, episode_one)
+            same_episode = select_shared_music(root, episode_one)
+            self.assertEqual(Path(first["audio"]).name, Path(same_episode["audio"]).name)
+
+            episode_two = root / "projects" / "episode_two"
+            second = select_shared_music(root, episode_two)
+            self.assertNotEqual(Path(first["audio"]).name, Path(second["audio"]).name)
+
+    def test_json_fingerprint_is_stable_and_sensitive_to_episode_inputs(self):
+        from app.reusable_production import _json_fingerprint
+        first = _json_fingerprint({"topic": "permeable pavement", "version": 3})
+        same = _json_fingerprint({"version": 3, "topic": "permeable pavement"})
+        changed = _json_fingerprint({"topic": "permeable pavement", "version": 4})
+        self.assertEqual(first, same)
+        self.assertNotEqual(first, changed)
+
     def test_noncommercial_music_cannot_be_registered(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
