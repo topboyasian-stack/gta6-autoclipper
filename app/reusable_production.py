@@ -283,7 +283,7 @@ class _EpisodeResearchHTMLParser:
                 self.skip_depth = max(0, self.skip_depth - 1)
 
         def handle_data(self, data):
-            clean = re.sub(r"\\s+", " ", data).strip()
+            clean = re.sub(r"\s+", " ", data).strip()
             if not clean:
                 return
             if self.in_title:
@@ -334,7 +334,7 @@ def fetch_verified_technical_sources(candidate_urls, max_pages: int = 5) -> list
                 raw = response.read(1_500_000)
             parser = _EpisodeResearchHTMLParser.Parser()
             parser.feed(raw.decode("utf-8", errors="replace"))
-            page_text = re.sub(r"\\s+", " ", " ".join(parser.parts)).strip()
+            page_text = re.sub(r"\s+", " ", " ".join(parser.parts)).strip()
             if len(page_text) < 500:
                 continue
             verified.append({
@@ -396,9 +396,9 @@ def research_episode_topic(
         raise RuntimeError("The research step did not return a valid list of technical source URLs.") from exc
 
     verified = fetch_verified_technical_sources(candidates)
-    retrieved_pages = "\\n\\n".join(
-        f"SOURCE {index}: {item['title']}\\nURL: {item['url']}\\n"
-        f"RETRIEVED PAGE TEXT:\\n{item['content_excerpt']}"
+    retrieved_pages = "\n\n".join(
+        f"SOURCE {index}: {item['title']}\nURL: {item['url']}\n"
+        f"RETRIEVED PAGE TEXT:\n{item['content_excerpt']}"
         for index, item in enumerate(verified, 1)
     )
     summary_prompt = (
@@ -407,8 +407,8 @@ def research_episode_topic(
         "Identify supported facts, important limits/conditions, common misconceptions, and which URLs support each fact. "
         "Do not invent measurements, statistics, capacities, prices or performance guarantees. "
         "Return JSON only with keys research_notes, important_caveats and unsupported_claims.\\n"
-        f"Topic: {topic}\\nViewer question: {engineering_question}\\n"
-        f"Additional focus: {user_guidance or 'None'}\\n\\n"
+        f"Topic: {topic}\nViewer question: {engineering_question}\\n"
+        f"Additional focus: {user_guidance or 'None'}\n\n"
         f"Retrieved source pages:\\n{retrieved_pages}"
     )
     summary_response = client.models.generate_content(
