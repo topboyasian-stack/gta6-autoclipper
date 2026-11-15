@@ -132,6 +132,28 @@ class EngineeringStudioTests(unittest.TestCase):
                 "1\n00:00:00,000 --> 00:00:01,000\nRain moves through the pavers\n",
                 encoding="utf-8",
             )
+            (folders["captions"] / "caption_qc.json").write_text(
+                json.dumps({"status": "AUTO_VERIFIED", "script_match_ratio": 1.0}),
+                encoding="utf-8",
+            )
+            (folders["audio"] / "music_license.json").write_text(
+                json.dumps({
+                    "commercial_use": True,
+                    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+                    "attribution": "Test composer — CC BY 3.0",
+                    "title": "Test music",
+                    "artist": "Test composer",
+                    "license": "CC BY 3.0",
+                }),
+                encoding="utf-8",
+            )
+            (folders["audio"] / "narration.json").write_text(
+                json.dumps({
+                    "voice_id": "test-voice",
+                    "voice_model_license": "CC0",
+                }),
+                encoding="utf-8",
+            )
 
             output = render_engineering_episode(
                 root, [scene_a, scene_b], output_format="shorts",
