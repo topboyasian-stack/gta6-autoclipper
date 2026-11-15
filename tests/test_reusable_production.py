@@ -113,7 +113,7 @@ class ReusableProductionTests(unittest.TestCase):
 
             episode_two = root / "projects" / "episode_two"
             second = select_shared_music(root, episode_two)
-            self.assertNotEqual(Path(first["audio"]).name, Path(second["audio"]).name)
+            self.assertNotEqual(first["metadata"]["title"], second["metadata"]["title"])
 
     def test_json_fingerprint_is_stable_and_sensitive_to_episode_inputs(self):
         from app.reusable_production import _json_fingerprint
