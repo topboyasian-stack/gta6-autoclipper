@@ -272,7 +272,25 @@ def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
     available = []
     failures = []
 
-    for track in DEFAULT_MUSIC_TRACKS:
+    # If the user has already registered their own cleared tracks, honour that library
+    # without downloading the default pack on their behalf.
+    has_registered_track = False
+    for sidecar in library.glob("*.license.json"):
+        try:
+            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        stem = sidecar.name.removesuffix(".license.json")
+        has_audio = any(
+            path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+            for path in library.glob(stem + ".*")
+        )
+        if has_audio and metadata.get("commercial_use") and metadata.get("license_url") and metadata.get("attribution"):
+            has_registered_track = True
+            break
+
+    default_tracks_to_seed = [] if has_registered_track else DEFAULT_MUSIC_TRACKS
+    for track in default_tracks_to_seed:
         audio_path = library / track["filename"]
         license_path = library / (audio_path.stem + ".license.json")
         try:
