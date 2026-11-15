@@ -623,7 +623,7 @@ Optional script draft to improve, if present:
 {draft_script or "[No draft supplied. Write an original script grounded only in the notes above.]"}
 
 Rules:
-- Build the narration around the actual visible scene order shown in the contact sheet.
+- Use the actual visual content in the contact sheet to choose the clearest engineering story sequence.
 - Do not invent dimensions, capacities, prices, dates, statistics, performance guarantees, or engineering properties.
 - If the scenes show a technical detail not supported by the notes, describe only what is visibly shown and do not present it as verified fact.
 - Make clear any conditional components, design limitations or trade-offs in the notes.
@@ -1047,9 +1047,14 @@ def prepare_reusable_episode_assets(
     scene_duration = sum(float(probe_media(path)["duration"]) for path in scene_files)
     if scene_duration < 15:
         raise ValueError("The Flow scene set is too short for an engineering explainer. Add more scene footage.")
-    fitted_target = max(15, min(178, int(scene_duration * 0.90)))
+    fitted_target = max(15, min(178, int(scene_duration * 0.70)))
 
     narration = synthesize_episode_narration(project_dir, workspace, voice_id=voice_id)
+    studio_config_path = Path(workspace) / "assets" / "studio_config.json"
+    studio_config = json.loads(studio_config_path.read_text(encoding="utf-8")) if studio_config_path.exists() else {}
+    studio_config["default_voice_id"] = narration["details"]["voice_id"]
+    studio_config["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    _write_json(studio_config_path, studio_config)
     import wave
     with wave.open(str(narration["audio"]), "rb") as wav_file:
         narration_duration = wav_file.getnframes() / max(1, wav_file.getframerate())
