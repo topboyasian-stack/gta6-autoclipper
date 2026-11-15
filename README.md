@@ -9,6 +9,7 @@ A local, rights-aware workflow for turning permitted gaming footage into vertica
 - Capture a creator-authorized RTMP/RTMPS feed in segments while the app is running.
 - Rank candidate moments using one-second audio energy (72%) plus FFmpeg scene-change signals (28%) when available; falls back to audio-only if scene detection fails.
 - Render 1080×1920 clips using a blurred background while preserving the full gameplay frame.
+- Build original animated engineering explainers from Google Flow scenes, with an episode brief, scene manifest, research references, labels, optional narration/music and reviewed captions.
 - Review, approve, or reject each candidate in the browser.
 - Connect your YouTube channel with OAuth, upload approved clips as **Private**, and use a separate explicit action to make a private upload public.
 
@@ -26,7 +27,7 @@ For older videos from your own YouTube channel, download your own source with Yo
 
 ## No Linux on your Chromebook? Use Google Colab
 
-Open the [single maintained Universal Colab Production Studio](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb). It is the only maintained Colab production notebook, with selectable modes for gaming highlights, AI-generated scene assembly, long-form videos, and multi-clip compilations. Open it directly from GitHub in Colab; do not download or upload the notebook file itself. The former GrowthReady notebook is archived and is not a separate workflow. Choose vertical 9:16 or horizontal 16:9 output, review the result, and export a ZIP with video and YouTube metadata. The first run can upload files once or read a Google Drive folder; later sessions can reuse the saved project sources without uploading again.
+Open the [single maintained Universal Colab Production Studio](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb). It is the only maintained Colab production notebook, with selectable modes for gaming highlights, AI-generated scene assembly, animated engineering explainers, long-form videos, and multi-clip compilations. Open it directly from GitHub in Colab; do not download or upload the notebook file itself. The former GrowthReady notebook is archived and is not a separate workflow. Choose vertical 9:16 or horizontal 16:9 output, review the result, and export a ZIP with video and YouTube metadata. The first run can upload files once or read a Google Drive folder; later sessions can reuse the saved project sources without uploading again.
 
 This is an on-demand Colab workflow, not a 24/7 service. Google Colab runtimes are temporary and may terminate, so the project saves source files, checkpoints, and exports in Google Drive. The notebook does not scrape arbitrary watch pages or publish automatically. See the [Colab Production Studio guide](docs/COLAB_PRODUCTION_STUDIO.md) and [fan-clipping and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
 
