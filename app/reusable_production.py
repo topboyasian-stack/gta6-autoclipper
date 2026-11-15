@@ -752,6 +752,8 @@ def render_flow_prompt_pack_markdown(pack: dict) -> str:
         "- Six scenes per Short: about **60 credits** before retries.",
         "- Twenty Shorts: **1,200 credits** before retries; reserve 25% for replacements, for a working budget of about **1,500 credits**.",
         "- Google AI Pro currently includes 1,000 monthly Flow credits plus 50 daily credits. Daily credits do not roll over; the practical total depends on using them on the days they refresh.",
+        "- A 30-day month could provide up to 2,500 credits if all 30 daily allotments are used. Daily credits do not accumulate when skipped.",
+        "- Check current costs and refresh rules in Google Flow Help: https://support.google.com/flow/answer/16526234.",
         "- This is a planning estimate, not an unlimited allowance. Check the current Flow credit balance and model cost in the prompt box.",
         "",
         "## Visual continuity guide",
