@@ -9,7 +9,7 @@ A local, rights-aware workflow for turning permitted gaming footage into vertica
 - Capture a creator-authorized RTMP/RTMPS feed in segments while the app is running.
 - Rank candidate moments using one-second audio energy (72%) plus FFmpeg scene-change signals (28%) when available; falls back to audio-only if scene detection fails.
 - Render 1080×1920 clips using a blurred background while preserving the full gameplay frame.
-- Produce repeatable animated engineering Shorts from Google Flow scenes: fetched technical research, automatic scene ordering, original script, Piper narration, word-timed SRT captions with transcript QA, licensed background music, vertical edit and a per-episode evidence pack.
+- Create six-scene Google Flow prompt packs from engineering topics, then produce repeatable Shorts from the exported Flow clips: fetched technical research, automatic scene ordering, original script, Piper narration, word-timed SRT captions with transcript QA, licensed background music, vertical edit and a per-episode evidence pack.
 - Review, approve, or reject each candidate in the browser.
 - Connect your YouTube channel with OAuth, upload approved clips as **Private**, and use a separate explicit action to make a private upload public.
 

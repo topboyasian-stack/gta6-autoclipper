@@ -18,7 +18,7 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | Multi-clip compilation | Two or more permitted clips | One assembled video |
 | Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
-The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook does not generate AI scenes; it assembles scene videos generated elsewhere.
+The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook creates a six-scene prompt pack, but you generate the video clips in Google Flow and export the MP4s for the notebook to assemble.
 
 ## First run
 
@@ -90,32 +90,28 @@ This is a reusable episode engine, not a one-off notebook. Every episode receive
 
 **Free-tier data notice:** Google says Gemini API free-tier content may be used to improve its products. Do not send private, confidential or sensitive material. Free tier has rate limits and is not unlimited. The studio uses Gemini text generation, not paid Google Search grounding.
 
-### Make a new episode
+### Make a new episode with Google AI Pro + Flow
 
-1. In Google Flow generate and export the episode's scene clips as MP4 files. The Colab studio does not create the Flow clips.
-2. In the Colab controls select **Animated engineering explainer**. The output is fixed to vertical 1080×1920 (9:16) Shorts.
-3. Enter a new episode title and the question it should answer. Optional topic-focus notes can narrow the angle. Leave the script field blank; the studio writes the original script.
-4. The incoming folder changes to an episode-specific path under \`MyDrive/GTA6_AutoClipper/incoming/<episode-slug>/\`. Put only that episode's Flow MP4 clips in this folder.
-5. Enter the actual rights basis for the Flow clips/audio and confirm it. This is a rights record, not a claim that every Flow plan or third-party soundtrack is automatically cleared.
-6. Leave the automatic research/storyboard switches enabled. Select the default narrator voice, or change it once; the preference is saved in \`assets/studio_config.json\`.
-7. Run the second code cell to create a separate project ID and copy the Flow source files into permanent Drive storage.
-8. Run the processing cell. It performs the same sequence for every episode:
-   - proposes official technical source URLs, fetches the pages and keeps only accessible pages from trusted government, university or recognized engineering domains;
-   - uses the fetched page text to prepare an evidence-based technical fact pack;
-   - samples the actual Flow clips, builds a storyboard contact sheet, chooses a logical scene order and creates scene labels;
-   - writes an original narration script to match the supplied scene set and its duration;
-   - generates narration locally with Piper using the downloaded voice model;
-   - transcribes the generated narration with Faster-Whisper, creates word-timed SRT captions and compares the transcript with the script;
-   - selects a music track that has an explicit commercial-use licence record, and mixes it below the narration;
-   - renders a vertical Short, burns in the captions and produces a render report.
-9. Caption QA is automatic. If the transcript/script match and SRT structure pass the set thresholds, the studio proceeds without requiring you to edit an SRT. If they fail, rendering is blocked and the SRT plus quality report are saved for inspection. This is automated verification, not a promise that speech recognition is infallible.
-10. Watch the finished preview for overall picture and sound quality. In the final cell type \`EXPORT\`. The MP4, metadata, licence credits and production evidence are saved in the episode's \`exports/\` folder and packaged into a ZIP.
+1. In the Colab controls select **Animated engineering explainer**. The output is fixed to vertical 1080×1920 (9:16) Shorts.
+2. Enter the new episode title and viewer question. Optional topic-focus notes can narrow the angle. Leave the script field blank; the studio writes the original sourced script after it sees the clips.
+3. Click **Generate six Flow scene prompts**. The studio uses the Gemini API key saved in Colab Secrets and displays a copy-ready prompt for each scene. The prompt pack is saved under My Drive/GTA6_AutoClipper/flow_prompt_packs/ as Markdown and JSON. This step consumes Gemini API quota, not Flow video credits.
+4. Open Google Flow and use **Veo 3.1 Lite**, **8 seconds**, **vertical 9:16**, **720p** for each clip. Google currently lists 10 credits per Veo 3.1 Lite generation for non-Ultra plans; check the visible credit cost in Flow before generating. If the account offers 1080p upscaling at no extra credits, use it after generation. Model names and costs can change.
+5. Copy each of the six prompts into Flow and generate six clips in the same project, following the visual continuity guide. Download/export the approved clips as MP4 files.
+6. The incoming folder changes to an episode-specific path under MyDrive/GTA6_AutoClipper/incoming/<episode-slug>/. Put only that episode's six Flow MP4 clips in this folder.
+7. Enter the actual rights basis for the Flow clips/audio and confirm it only after checking the applicable rights. This is a rights record, not a claim that every Flow plan or third-party soundtrack is automatically cleared.
+8. Leave the automatic research/storyboard switches enabled. Select the default narrator voice, or change it once; the preference is saved in assets/studio_config.json.
+9. Run the source/preparation cell to copy the scene files into permanent Drive storage, then run the processing cell and preview the result.
+10. Watch the finished preview. Caption match and timestamp checks run automatically; failed checks block final rendering and retain a diagnostic report. Run the export cell only after the preview is acceptable.
 
-### Repeat for as many episodes as you need
+### Google AI Pro monthly credit budget
 
-For the next video, use the same Colab link and same studio. Change only the new episode's title/question and put the new Flow MP4 files in the incoming folder displayed for that episode. Leave the narrator, caption and licensed-music setup in place. A new timestamped project ID is created automatically. No notebook upload, code edit, manual SRT creation, or per-scene CSV editing is required.
+Google's current Flow help lists **1,000 monthly credits plus 50 daily credits** for AI Pro. Daily credits do not roll over. Veo 3.1 Lite currently costs **10 credits per generated clip** for the 4-, 6-, or 8-second options on non-Ultra plans; supported 1080p upscaling currently costs no extra credits for Pro, but always verify the current cost in Flow before generating.
 
-To re-render an earlier episode, set the project ID to that episode's saved ID and choose **Reuse this project's saved sources**. The source scenes, script, narration, music credit, captions and QC report are retained in Drive.
+At six 8-second scenes per Short, 20 Shorts require about **1,200 credits** before retries. A 25% replacement allowance brings the plan to about **1,500 credits**. The 1,000 monthly credits alone are not enough for the full reserve; daily credits can cover it when they are used on the days they refresh. Thirty Shorts with the same reserve would need about 2,250 credits and depends on making consistent use of those daily credits. These are planning estimates, not guaranteed quotas. Official reference: [Google Flow credit refresh and pricing](https://support.google.com/flow/answer/16526234).
+
+The notebook does not control Google Flow or spend Flow credits automatically. You still generate and download the scenes yourself; the studio takes over after the MP4s are in the incoming folder.
+
+The existing Pilot 01 prompt pack intentionally remains a separate seven-scene set so previously generated pilot clips can still be used. The six-scene credit plan applies to new prompt packs generated in the notebook.
 
 ### Automatic assets and licences
 

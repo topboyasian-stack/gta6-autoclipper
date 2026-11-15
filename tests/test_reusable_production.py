@@ -9,10 +9,77 @@ from app.reusable_production import (
     create_automatic_episode_captions,
     register_music_track,
     select_shared_music,
+    validate_flow_prompt_pack,
+    render_flow_prompt_pack_markdown,
+    save_flow_prompt_pack,
 )
 
 
 class ReusableProductionTests(unittest.TestCase):
+
+    def _valid_flow_payload(self):
+        return {
+            "visual_continuity_bible": (
+                "A consistent stylised 3D engineering scene, with the same recurring subject, "
+                "material palette, camera geography, daylight and restrained motion in every shot."
+            ),
+            "scenes": [
+                {
+                    "order": i,
+                    "scene_title": f"Scene {i}",
+                    "purpose": "Explain one stage of the process clearly.",
+                    "shot_description": (
+                        f"Show a visually specific, physically plausible part of the system at stage {i}, "
+                        "with a simple camera move and no on-screen labels."
+                    ),
+                }
+                for i in range(1, 7)
+            ],
+        }
+
+    def test_flow_prompt_pack_requires_exactly_six_ordered_scenes(self):
+        payload = self._valid_flow_payload()
+        pack = validate_flow_prompt_pack(
+            payload, "Test engineering episode", "How does this engineering system work?"
+        )
+        self.assertEqual(pack["scene_count"], 6)
+        self.assertEqual([scene["order"] for scene in pack["scenes"]], list(range(1, 7)))
+        self.assertIn("No visible words", pack["scenes"][0]["prompt"])
+        self.assertIn("Veo 3.1 Lite", pack["flow_model_recommendation"])
+
+        payload["scenes"].pop()
+        with self.assertRaisesRegex(ValueError, "exactly 6 scenes"):
+            validate_flow_prompt_pack(
+                payload, "Test engineering episode", "How does this engineering system work?"
+            )
+
+    def test_flow_prompt_pack_markdown_contains_credit_budget_and_copyable_prompts(self):
+        pack = validate_flow_prompt_pack(
+            self._valid_flow_payload(),
+            "Test engineering episode",
+            "How does this engineering system work?",
+        )
+        markdown = render_flow_prompt_pack_markdown(pack)
+        self.assertIn("1,200 credits", markdown)
+        self.assertIn("1,500 credits", markdown)
+        self.assertIn("Veo 3.1 Lite", markdown)
+        self.assertEqual(markdown.count("~~~text"), 6)
+
+    def test_flow_prompt_pack_saves_json_and_markdown_under_persistent_workspace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pack = validate_flow_prompt_pack(
+                self._valid_flow_payload(),
+                "Test engineering episode",
+                "How does this engineering system work?",
+            )
+            paths = save_flow_prompt_pack(pack, Path(directory))
+            self.assertTrue(paths["json"].is_file())
+            self.assertTrue(paths["markdown"].is_file())
+            saved = json.loads(paths["json"].read_text(encoding="utf-8"))
+            self.assertEqual(len(saved["scenes"]), 6)
+            self.assertIn("Google Flow Scene Prompt Pack", paths["markdown"].read_text(encoding="utf-8"))
+
+
     def test_word_timestamps_become_sequential_srt_cues(self):
         words = [
             {"text": "Rain", "start": 0.00, "end": 0.32},

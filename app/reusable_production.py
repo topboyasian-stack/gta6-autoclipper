@@ -665,6 +665,210 @@ def research_episode_topic(
     }
 
 
+
+
+FLOW_SCENE_COUNT = 6
+FLOW_SCENE_DURATION_SECONDS = 8
+
+
+def validate_flow_prompt_pack(
+    payload: object,
+    episode_title: str,
+    engineering_question: str,
+) -> dict:
+    """Validate a six-scene, subscription-credit-conscious Google Flow prompt plan."""
+    if not isinstance(payload, dict):
+        raise ValueError("The Flow prompt planner returned a non-object response.")
+    continuity = str(payload.get("visual_continuity_bible", "")).strip()
+    raw_scenes = payload.get("scenes")
+    if len(continuity) < 80:
+        raise ValueError("The Flow prompt plan needs a usable visual-continuity guide.")
+    if not isinstance(raw_scenes, list) or len(raw_scenes) != FLOW_SCENE_COUNT:
+        raise ValueError(f"The Flow prompt plan must contain exactly {FLOW_SCENE_COUNT} scenes.")
+
+    normalized_scenes = []
+    for expected_order, raw_scene in enumerate(raw_scenes, start=1):
+        if not isinstance(raw_scene, dict):
+            raise ValueError(f"Scene {expected_order} is not a valid object.")
+        try:
+            order = int(raw_scene.get("order", expected_order))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Scene {expected_order} has an invalid order.") from exc
+        if order != expected_order:
+            raise ValueError("Flow scene orders must be sequential from 1 to 6.")
+        title = str(raw_scene.get("scene_title", "")).strip()
+        purpose = str(raw_scene.get("purpose", "")).strip()
+        shot_description = str(raw_scene.get("shot_description", "")).strip()
+        if len(title) < 3 or len(purpose) < 12 or len(shot_description) < 40:
+            raise ValueError(f"Scene {expected_order} is missing its title, purpose, or visual description.")
+        complete_prompt = (
+            "Create one 8-second vertical 9:16 clip for an educational engineering explainer. "
+            "Style and continuity for every scene: " + continuity + " "
+            "Specific shot for this scene: " + shot_description + " "
+            "Use one clear continuous shot and one restrained camera movement. "
+            "No visible words, captions, labels, numbers, logos, watermarks, or spoken dialogue. "
+            "Do not invent measurements, performance claims, or unsupported technical details. "
+            "Show a plausible visual explanation only; verified narration and labels will be added later."
+        )
+        normalized_scenes.append({
+            "order": expected_order,
+            "scene_title": title,
+            "purpose": purpose,
+            "shot_description": shot_description,
+            "prompt": complete_prompt,
+            "filename": f"{expected_order:02d}_{re.sub(r'[^A-Za-z0-9]+', '_', title).strip('_').lower()[:42] or 'scene'}.mp4",
+        })
+
+    return {
+        "episode_title": str(episode_title).strip(),
+        "engineering_question": str(engineering_question).strip(),
+        "visual_continuity_bible": continuity,
+        "flow_model_recommendation": "Veo 3.1 Lite",
+        "scene_duration_seconds": FLOW_SCENE_DURATION_SECONDS,
+        "scene_count": FLOW_SCENE_COUNT,
+        "scenes": normalized_scenes,
+    }
+
+
+def render_flow_prompt_pack_markdown(pack: dict) -> str:
+    """Render a beginner-friendly Flow prompt sheet and credit plan."""
+    scenes = pack.get("scenes", [])
+    lines = [
+        "# Google Flow Scene Prompt Pack",
+        "",
+        f"**Episode:** {pack['episode_title']}",
+        f"**Viewer question:** {pack['engineering_question']}",
+        "",
+        "## Google Flow settings — check the live credit label before each batch",
+        "",
+        "- Model: **Veo 3.1 Lite**",
+        "- Duration: **8 seconds per scene**",
+        "- Aspect ratio: **vertical 9:16**",
+        "- Generate at **720p**; if Flow offers 1080p upscaling for the generated clip at no extra credits, use that option.",
+        "- For non-Ultra plans, Google's current help page lists 10 credits per Veo 3.1 Lite generation (4, 6, or 8 seconds). Costs and available models can change.",
+        "",
+        "## Monthly planning baseline",
+        "",
+        "- Six scenes per Short: about **60 credits** before retries.",
+        "- Twenty Shorts: **1,200 credits** before retries; reserve 25% for replacements, for a working budget of about **1,500 credits**.",
+        "- Google AI Pro currently includes 1,000 monthly Flow credits plus 50 daily credits. Daily credits do not roll over; the practical total depends on using them on the days they refresh.",
+        "- A 30-day month could provide up to 2,500 credits if all 30 daily allotments are used. Daily credits do not accumulate when skipped.",
+        "- Check current costs and refresh rules in Google Flow Help: https://support.google.com/flow/answer/16526234.",
+        "- This is a planning estimate, not an unlimited allowance. Check the current Flow credit balance and model cost in the prompt box.",
+        "",
+        "## Visual continuity guide",
+        "",
+        pack["visual_continuity_bible"],
+        "",
+        "## Generate the six clips",
+        "",
+        "Create one clip for each prompt below. Keep the same Flow project, recurring subject, setting, style, and aspect ratio. Download the six approved MP4s into the episode-specific incoming folder shown by Colab. The Colab studio then checks the actual clips, can sequence them for clarity, and produces the researched narration, captions, licensed music and final render.",
+        "",
+        "These are visual prompts, not the engineering script. The notebook separately retrieves technical sources and writes the final sourced narration. Do not add unverified text or numerical claims inside the generated footage.",
+        "",
+    ]
+    for scene in scenes:
+        lines.extend([
+            f"### Scene {scene['order']:02d} — {scene['scene_title']}",
+            "",
+            f"**Purpose:** {scene['purpose']}",
+            "",
+            "**Copy this complete prompt into Google Flow:**",
+            "",
+            "~~~text",
+            scene["prompt"].strip(),
+            "~~~",
+            "",
+            f"**Suggested export filename:** {scene['filename']}",
+            "",
+        ])
+    lines.extend([
+        "## After all six scenes are approved",
+        "",
+        "1. Export/download the scenes as MP4 files.",
+        "2. Put only these six clips in the episode-specific Drive incoming folder displayed by the Colab controls.",
+        "3. Return to Colab and continue with source preparation, processing/preview, and final export.",
+        "4. Watch the finished preview before uploading it manually to YouTube.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def generate_flow_prompt_pack(
+    episode_title: str,
+    engineering_question: str,
+    gemini_api_key: str,
+    user_guidance: str = "",
+    model: str = "gemini-3.8-flash",
+) -> dict:
+    """Generate six scene-specific visual prompts for subscription-based Google Flow production."""
+    if not gemini_api_key or len(gemini_api_key.strip()) < 10:
+        raise ValueError("A GEMINI_API_KEY saved in Colab Secrets is required to generate a Flow prompt pack.")
+    if not episode_title.strip() or not engineering_question.strip():
+        raise ValueError("Enter both an episode title and the viewer question before generating prompts.")
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:
+        raise RuntimeError("google-genai is not installed. Run the prompt-pack setup step again.") from exc
+
+    client = genai.Client(api_key=gemini_api_key.strip())
+    prompt = (
+        "Create an original, visually coherent six-shot scene plan for a vertical engineering explainer to be "
+        "generated manually in Google Flow. Return JSON only with exactly these keys: visual_continuity_bible, "
+        "scenes. visual_continuity_bible must be a detailed guide that fixes the recurring subject/location, "
+        "materials, colour palette, time of day, camera geography and visual style across all six clips. "
+        "scenes must be an array of exactly six objects; each object has order (1 through 6), scene_title, purpose, "
+        "shot_description. Make a logical progression from hook/problem, through the mechanism/components, to an "
+        "outcome and a relevant limitation. Each scene should be a single simple 8-second shot that can be generated "
+        "separately. Use stylised 3D engineering animation, not photorealistic fake news footage, unless the topic "
+        "makes a different clearly educational visual style more appropriate. No on-screen text, labels, captions, "
+        "numbers, logos, watermarks, dialogue, invented dimensions, unsupported performance claims, or impossible "
+        "physics. Keep each shot visually clear and specific; narration, factual labels and captions will be added "
+        "later after the studio retrieves and checks technical sources. Avoid directing the video to display any "
+        "factual claims as text. The prompts must each be understandable as standalone prompts and maintain the same "
+        "continuity guide. Do not return actual video, image, audio or script; return only scene-planning JSON.\n\n"
+        f"Episode title: {episode_title.strip()}\n"
+        f"Viewer question: {engineering_question.strip()}\n"
+        f"Topic focus: {user_guidance.strip() or 'None'}"
+    )
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.35,
+        ),
+    )
+    try:
+        raw_payload = json.loads(response.text)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Gemini did not return a valid Flow prompt pack. No prompt file was saved.") from exc
+    pack = validate_flow_prompt_pack(raw_payload, episode_title, engineering_question)
+    pack["model"] = model
+    pack["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    pack["topic_focus"] = user_guidance.strip()
+    return pack
+
+
+def save_flow_prompt_pack(pack: dict, workspace: Path) -> dict[str, Path]:
+    """Save prompt JSON and copy-ready Markdown in the persistent Google Drive workspace."""
+    title_slug = re.sub(r"[^A-Za-z0-9_-]+", "_", pack["episode_title"]).strip("_").lower()[:48] or "engineering_episode"
+    fingerprint = _json_fingerprint({
+        "episode_title": pack["episode_title"],
+        "engineering_question": pack["engineering_question"],
+        "topic_focus": pack.get("topic_focus", ""),
+        "scene_count": pack.get("scene_count", FLOW_SCENE_COUNT),
+    })[:12]
+    output_dir = Path(workspace) / "flow_prompt_packs" / f"{title_slug}_{fingerprint}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "flow_scene_prompt_pack.json"
+    markdown_path = output_dir / "flow_scene_prompt_pack.md"
+    _write_json(json_path, pack)
+    markdown_path.write_text(render_flow_prompt_pack_markdown(pack), encoding="utf-8")
+    return {"directory": output_dir, "json": json_path, "markdown": markdown_path}
+
+
 def generate_episode_from_flow_scenes(
     project_dir: Path,
     scene_files: Iterable[Path],

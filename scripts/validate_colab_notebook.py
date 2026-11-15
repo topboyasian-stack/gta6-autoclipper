@@ -56,6 +56,10 @@ def main():
         "assets/voice_models",
         "assets/whisper_models",
         "assets/music_library",
+        "Generate six Flow scene prompts",
+        "Veo 3.1 Lite",
+        "1,500 credits",
+        "flow_prompt_packs",
         "180",
     ]
     missing = [term for term in required if term not in all_source]
@@ -73,6 +77,10 @@ def main():
         "select_shared_music",
         "music_license.json",
         "voice_MODEL_CARD.txt",
+        "generate_flow_prompt_pack",
+        "validate_flow_prompt_pack",
+        "render_flow_prompt_pack_markdown",
+        "save_flow_prompt_pack",
     ]
     missing_pipeline = [term for term in pipeline_required if term not in pipeline_source]
     assert not missing_pipeline, f"Reusable production engine is missing features: {missing_pipeline}"
