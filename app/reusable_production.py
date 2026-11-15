@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Iterable
 
 PIPELINE_VERSION = 3
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
 VOICE_MODELS = {
     "en_US-joe-medium": {
