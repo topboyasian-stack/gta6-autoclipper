@@ -127,6 +127,12 @@ class EngineeringStudioTests(unittest.TestCase):
                 check=True, capture_output=True, text=True, timeout=60,
             )
 
+            captions = folders["captions"] / "episode.srt"
+            captions.write_text(
+                "1\\n00:00:00,000 --> 00:00:01,000\\nRain moves through the pavers\\n",
+                encoding="utf-8",
+            )
+
             output = render_engineering_episode(
                 root, [scene_a, scene_b], output_format="shorts",
                 keep_scene_audio=True, output_size=(180, 320),
@@ -139,6 +145,7 @@ class EngineeringStudioTests(unittest.TestCase):
             report = json.loads((folders["work"] / "render_report.json").read_text())
             self.assertTrue(report["narration_included"])
             self.assertTrue(report["music_included"])
+            self.assertTrue(report["captions_burned_in"])
             self.assertEqual(len(report["scenes"]), 2)
 
     def test_landscape_export_is_rejected_for_engineering_shorts(self):
