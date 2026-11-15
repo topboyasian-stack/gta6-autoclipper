@@ -107,7 +107,7 @@ This is a reusable episode engine, not a one-off notebook. Every episode receive
 
 Google's current Flow help lists **1,000 monthly credits plus 50 daily credits** for AI Pro. Daily credits do not roll over. Veo 3.1 Lite currently costs **10 credits per generated clip** for the 4-, 6-, or 8-second options on non-Ultra plans; supported 1080p upscaling currently costs no extra credits for Pro, but always verify the current cost in Flow before generating.
 
-At six 8-second scenes per Short, 20 Shorts require about **1,200 credits** before retries. A 25% replacement allowance brings the plan to about **1,500 credits**. The 1,000 monthly credits alone are not enough for the full reserve; daily credits can cover it when they are used on the days they refresh. Thirty Shorts with the same reserve would need about 2,250 credits and depends on making consistent use of those daily credits. These are planning estimates, not guaranteed quotas.
+At six 8-second scenes per Short, 20 Shorts require about **1,200 credits** before retries. A 25% replacement allowance brings the plan to about **1,500 credits**. The 1,000 monthly credits alone are not enough for the full reserve; daily credits can cover it when they are used on the days they refresh. Thirty Shorts with the same reserve would need about 2,250 credits and depends on making consistent use of those daily credits. These are planning estimates, not guaranteed quotas. Official reference: [Google Flow credit refresh and pricing](https://support.google.com/flow/answer/16526234).
 
 The notebook does not control Google Flow or spend Flow credits automatically. You still generate and download the scenes yourself; the studio takes over after the MP4s are in the incoming folder.
 
