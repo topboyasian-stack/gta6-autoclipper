@@ -18,6 +18,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
+PIPELINE_VERSION = 3
+
 VOICE_MODELS = {
     "en_US-joe-medium": {
         "language": "English (US)",
@@ -592,6 +594,7 @@ def generate_episode_from_flow_scenes(
         "draft_script": draft_script,
         "target_seconds": target_seconds,
         "model": model,
+        "pipeline_version": PIPELINE_VERSION,
     })
     existing_brief_path = project_dir / "episode_brief.json"
     existing_manifest_path = project_dir / "scene_manifest.csv"
@@ -729,8 +732,15 @@ def synthesize_episode_narration(
     narration_path = audio_dir / "narration.wav"
     metadata_path = audio_dir / "narration.json"
     script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
+    voice_fingerprint = _file_fingerprint(Path(voice["model"]))
     existing = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
-    if existing.get("script_sha256") == script_hash and existing.get("voice_id") == actual_voice_id and narration_path.exists():
+    if (
+        existing.get("script_sha256") == script_hash
+        and existing.get("voice_id") == actual_voice_id
+        and existing.get("voice_model_fingerprint") == voice_fingerprint
+        and existing.get("pipeline_version") == PIPELINE_VERSION
+        and narration_path.exists()
+    ):
         return {"audio": narration_path, "metadata": metadata_path, "reused": True, "details": existing}
 
     try:
@@ -749,13 +759,19 @@ def synthesize_episode_narration(
         "voice_model_license": voice["license"],
         "voice_training_base": voice["training_base"],
         "voice_fallback_used": voice["fallback_used"],
-        "voice_model_card": str(voice["model_card"]),
+        "voice_model_card": "audio/voice_MODEL_CARD.txt",
+        "voice_model_fingerprint": voice_fingerprint,
+        "pipeline_version": PIPELINE_VERSION,
         "tts_engine": "Piper TTS",
         "tts_engine_license": "GPL-3.0-or-later",
         "script_sha256": script_hash,
         "word_count": len(words),
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
+    shutil.copy2(voice["model_card"], audio_dir / "voice_MODEL_CARD.txt")
+    engine_license_path = Path(voice["directory"]) / "PIPER_ENGINE_LICENSE.txt"
+    if engine_license_path.exists():
+        shutil.copy2(engine_license_path, audio_dir / "PIPER_ENGINE_LICENSE.txt")
     _write_json(metadata_path, details)
     (audio_dir / "narration_script.txt").write_text(script + "\n", encoding="utf-8")
     return {"audio": narration_path, "metadata": metadata_path, "reused": False, "details": details}
@@ -902,6 +918,7 @@ def create_automatic_episode_captions(
     details = {
         "status": "AUTO_VERIFIED" if auto_verified else "REVIEW_REQUIRED",
         "model_size": model_size,
+        "pipeline_version": PIPELINE_VERSION,
         "language": getattr(info, "language", "en"),
         "word_count_expected": len(expected),
         "word_count_recognized": len(recognized),
