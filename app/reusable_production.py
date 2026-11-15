@@ -79,10 +79,10 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def _download(url: str, destination: Path, min_bytes: int = 1000) -> Path:
+def _download(url: str, destination: Path, min_bytes: int = 1000, force: bool = False) -> Path:
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and destination.stat().st_size >= min_bytes:
+    if not force and destination.exists() and destination.stat().st_size >= min_bytes:
         return destination
     temporary = destination.with_suffix(destination.suffix + ".part")
     request = urllib.request.Request(
@@ -159,7 +159,35 @@ def ensure_voice_model(workspace: Path, voice_id: str = "en_US-joe-medium") -> d
                     and "trained from scratch" in card_lower
                 )
             if not verified:
-                errors.append(f"{candidate}: downloaded MODEL_CARD does not confirm {metadata['license']} / {metadata['base']} provenance")
+                # The voice name may be unchanged after a retrain. Refresh all cached files once
+                # so an old Lessac/Ryan checkpoint is never accepted by filename alone.
+                for filename in filenames:
+                    (voice_dir / filename).unlink(missing_ok=True)
+                for filename in filenames:
+                    _download(
+                        f"{base_url}/{filename}?download=true",
+                        voice_dir / filename,
+                        min_bytes=100 if filename == "MODEL_CARD" else 1000,
+                        force=True,
+                    )
+                model_card = (voice_dir / "MODEL_CARD").read_text(
+                    encoding="utf-8", errors="replace"
+                )
+                if metadata["base"] == "rdh":
+                    verified = (
+                        "CC0" in model_card.upper()
+                        and "rdh" in model_card.lower()
+                        and "lessac" not in model_card.lower()
+                        and "ryan voice" not in model_card.lower()
+                    )
+                else:
+                    card_lower = model_card.lower()
+                    verified = (
+                        "public domain" in card_lower
+                        and "trained from scratch" in card_lower
+                    )
+            if not verified:
+                errors.append(f"{candidate}: refreshed MODEL_CARD does not confirm {metadata['license']} / {metadata['base']} provenance")
                 continue
             model_path = voice_dir / f"{candidate}.onnx"
             config_path = voice_dir / f"{candidate}.onnx.json"
