@@ -31,6 +31,12 @@ VOICE_MODELS = {
         "base": "rdh",
         "relative_dir": "en/en_US/mike/medium",
     },
+    "en_US-ljspeech-medium": {
+        "language": "English (US)",
+        "license": "Public Domain",
+        "base": "scratch",
+        "relative_dir": "en/en_US/ljspeech/medium",
+    },
 }
 
 DEFAULT_MUSIC = {
@@ -96,55 +102,86 @@ def _normal_words(text: str) -> list[str]:
 
 
 def ensure_voice_model(workspace: Path, voice_id: str = "en_US-joe-medium") -> dict[str, Path | str]:
-    """Download and verify a Piper voice whose complete documented dataset chain is CC0."""
+    """Download and verify a Piper voice against its actual model-card training chain.
+
+    Joe/Mike are accepted only when the downloaded card says CC0 and rdh.
+    LJSpeech is the public-domain, trained-from-scratch fallback.
+    """
     if voice_id not in VOICE_MODELS:
         raise ValueError(
             f"Unsupported voice {voice_id!r}. Choose one of: {', '.join(VOICE_MODELS)}."
         )
-    metadata = VOICE_MODELS[voice_id]
-    voice_dir = Path(workspace) / "assets" / "voice_models" / voice_id
-    voice_dir.mkdir(parents=True, exist_ok=True)
-    relative = str(metadata["relative_dir"])
-    base_url = f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{relative}"
-    filenames = [
-        f"{voice_id}.onnx",
-        f"{voice_id}.onnx.json",
-        "MODEL_CARD",
-    ]
-    for filename in filenames:
-        _download(
-            f"{base_url}/{filename}?download=true",
-            voice_dir / filename,
-            min_bytes=100 if filename == "MODEL_CARD" else 1000,
-        )
 
-    model_card = (voice_dir / "MODEL_CARD").read_text(encoding="utf-8", errors="replace")
-    if "CC0" not in model_card.upper() or str(metadata["base"]).lower() not in model_card.lower():
-        raise PermissionError(
-            "The downloaded Piper voice model card does not confirm the expected CC0 training "
-            "chain. The voice was not used. Re-download and inspect MODEL_CARD before publishing."
-        )
-    if not (voice_dir / f"{voice_id}.onnx").is_file() or not (voice_dir / f"{voice_id}.onnx.json").is_file():
-        raise FileNotFoundError("Piper voice model or configuration is missing.")
+    preference = [voice_id]
+    if voice_id != "en_US-ljspeech-medium":
+        preference.append("en_US-ljspeech-medium")
+    errors = []
+    for candidate in preference:
+        metadata = VOICE_MODELS[candidate]
+        voice_dir = Path(workspace) / "assets" / "voice_models" / candidate
+        voice_dir.mkdir(parents=True, exist_ok=True)
+        relative = str(metadata["relative_dir"])
+        base_url = f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{relative}"
+        filenames = [f"{candidate}.onnx", f"{candidate}.onnx.json", "MODEL_CARD"]
+        try:
+            for filename in filenames:
+                _download(
+                    f"{base_url}/{filename}?download=true",
+                    voice_dir / filename,
+                    min_bytes=100 if filename == "MODEL_CARD" else 1000,
+                )
+            model_card = (voice_dir / "MODEL_CARD").read_text(
+                encoding="utf-8", errors="replace"
+            )
+            if metadata["base"] == "rdh":
+                verified = (
+                    "CC0" in model_card.upper()
+                    and "rdh" in model_card.lower()
+                    and "lessac" not in model_card.lower()
+                    and "ryan voice" not in model_card.lower()
+                )
+            else:
+                card_lower = model_card.lower()
+                verified = (
+                    "public domain" in card_lower
+                    and "trained from scratch" in card_lower
+                )
+            if not verified:
+                errors.append(f"{candidate}: downloaded MODEL_CARD does not confirm {metadata['license']} / {metadata['base']} provenance")
+                continue
+            model_path = voice_dir / f"{candidate}.onnx"
+            config_path = voice_dir / f"{candidate}.onnx.json"
+            if not model_path.is_file() or not config_path.is_file():
+                errors.append(f"{candidate}: ONNX model or config file is missing")
+                continue
 
-    engine_note = voice_dir / "PIPER_ENGINE_LICENSE.txt"
-    if not engine_note.exists():
-        engine_note.write_text(
-            "Piper TTS engine: GPL-3.0-or-later. The voice model is separately licensed; "
-            "see the adjacent MODEL_CARD. The selected voice is accepted only when its "
-            "model card identifies the documented CC0 rdh training chain.\n"
-            "Piper licensing guidance: https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/LICENSING.md\n",
-            encoding="utf-8",
-        )
-    return {
-        "directory": voice_dir,
-        "model": voice_dir / f"{voice_id}.onnx",
-        "config": voice_dir / f"{voice_id}.onnx.json",
-        "model_card": voice_dir / "MODEL_CARD",
-        "voice_id": voice_id,
-        "license": str(metadata["license"]),
-    }
+            engine_note = voice_dir / "PIPER_ENGINE_LICENSE.txt"
+            if not engine_note.exists():
+                engine_note.write_text(
+                    "Piper TTS engine: GPL-3.0-or-later. The voice model is separately licensed; "
+                    "see the adjacent MODEL_CARD. The production studio uses this voice only after "
+                    f"the downloaded MODEL_CARD confirms {metadata['license']} and training provenance.\n"
+                    "Piper licensing guidance: https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/LICENSING.md\n",
+                    encoding="utf-8",
+                )
+            return {
+                "directory": voice_dir,
+                "model": model_path,
+                "config": config_path,
+                "model_card": voice_dir / "MODEL_CARD",
+                "voice_id": candidate,
+                "license": str(metadata["license"]),
+                "fallback_used": candidate != voice_id,
+                "training_base": str(metadata["base"]),
+            }
+        except Exception as exc:
+            errors.append(f"{candidate}: {type(exc).__name__}: {exc}")
 
+    raise PermissionError(
+        "No Piper voice with a verified commercial-use training chain was available. "
+        "The studio refused to synthesize narration using an unverified model. "
+        + " | ".join(errors)
+    )
 
 def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
     """Create a reusable Drive music library and seed it with a verified CC-BY track."""
