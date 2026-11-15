@@ -266,7 +266,7 @@ def ensure_voice_model(workspace: Path, voice_id: str = "en_US-joe-medium") -> d
     )
 
 def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
-    """Create a persistent Drive music library and seed all verified CC-BY tracks once."""
+    """Create a persistent Drive music library and seed several verified CC-BY tracks once."""
     library = Path(workspace) / "assets" / "music_library"
     library.mkdir(parents=True, exist_ok=True)
     available = []
@@ -299,9 +299,28 @@ def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
                 encoding="utf-8",
             )
 
+    # User-registered tracks remain available alongside the default library.
+    seeded_names = {audio.name for audio, _, _ in available}
+    for sidecar in sorted(library.glob("*.license.json")):
+        try:
+            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        stem = sidecar.name.removesuffix(".license.json")
+        matches = [
+            path for path in library.glob(stem + ".*")
+            if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+        ]
+        for audio in matches:
+            if audio.name in seeded_names:
+                continue
+            if metadata.get("commercial_use") and metadata.get("license_url") and metadata.get("attribution"):
+                available.append((audio, sidecar, metadata))
+                seeded_names.add(audio.name)
+
     if not available:
         raise FileNotFoundError(
-            "No default or registered commercial-use music track is available. "
+            "No commercial-use music track with a complete licence record is available. "
             "Check the internet connection or add an audio file with a complete licence sidecar."
         )
 
