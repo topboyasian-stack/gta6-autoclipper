@@ -260,6 +260,20 @@ def select_shared_music(workspace: Path, project_dir: Path) -> dict[str, Path | 
     audio_dir = Path(project_dir) / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
 
+    # A rerun of the same episode keeps its selected track; rotation is only for new projects.
+    existing_license = audio_dir / "music_license.json"
+    existing_audio = [
+        path for path in audio_dir.glob("music.*")
+        if path.is_file() and path.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
+    ]
+    if existing_license.exists() and len(existing_audio) == 1:
+        try:
+            metadata = json.loads(existing_license.read_text(encoding="utf-8"))
+            if metadata.get("commercial_use") and metadata.get("license_url") and metadata.get("attribution"):
+                return {"audio": existing_audio[0], "license": existing_license, "metadata": metadata}
+        except (OSError, json.JSONDecodeError):
+            pass
+
     candidates = []
     for metadata_path in sorted(Path(library["directory"]).glob("*.license.json")):
         try:
