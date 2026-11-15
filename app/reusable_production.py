@@ -196,7 +196,7 @@ def select_shared_music(workspace: Path, project_dir: Path) -> dict[str, Path | 
     selected = next((item for item in candidates if item[0].name != previous), candidates[0])
     source_audio, source_license, metadata = selected
 
-    target_audio = audio_dir / "music" + source_audio.suffix if False else audio_dir / ("music" + source_audio.suffix)
+    target_audio = audio_dir / ("music" + source_audio.suffix)
     target_license = audio_dir / "music_license.json"
     import shutil
     shutil.copy2(source_audio, target_audio)
@@ -298,7 +298,7 @@ Create one factual, engaging YouTube Short using the supplied contact sheet of t
 
 Episode title: {episode_title}
 Viewer's engineering question: {engineering_question}
-Target narration length: about {target_seconds} seconds (roughly 105-145 spoken words for a 65-second Short).
+Target narration length: about {target_seconds} seconds (aim for roughly {max(45, int(target_seconds * 1.85))}-{max(65, int(target_seconds * 2.15))} spoken words).
 Technical research notes (the only facts you may assert):
 {research_notes}
 
@@ -316,7 +316,8 @@ Rules:
 - Write original narration, not a rewrite of another YouTube channel.
 - Use a strong opening question, clear cause-and-effect explanation and a concise ending.
 - Do not include Markdown, stage directions, sound-effect cues, citations inside the spoken narration, or section headings.
-- Provide concise, factually bounded lower-third scene titles and short scene descriptions. There must be exactly one scene_manifest entry for each supplied file, using the exact filename and order below.
+- Provide concise, factually bounded lower-third scene titles and short scene descriptions. There must be exactly one scene_manifest entry for each supplied file, using every exact filename once.
+- You may reorder supplied scenes into the clearest engineering story using their visible content. Set order to consecutive integers from 1 to N.
 - The script should be readable aloud and not exceed the target time by more than 10 percent.
 - Output valid JSON only with keys:
   "episode_title", "engineering_question", "hook", "original_script",
@@ -350,8 +351,15 @@ Rules:
         raise ValueError("Generated scene manifest does not contain exactly one row per Flow scene.")
     actual_files = [str(row.get("scene_file", "")) for row in generated_rows]
     expected_files = [path.name for path in scene_files]
-    if actual_files != expected_files:
-        raise ValueError("Generated scene manifest changed the source filenames or their order.")
+    if len(actual_files) != len(set(actual_files)) or set(actual_files) != set(expected_files):
+        raise ValueError("Generated scene manifest must include every source filename exactly once.")
+    try:
+        order_values = [int(row.get("order")) for row in generated_rows]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Generated scene order contains a non-integer value.") from exc
+    if sorted(order_values) != list(range(1, len(scene_files) + 1)):
+        raise ValueError("Generated scene order must contain each number from 1 through N exactly once.")
+    generated_rows.sort(key=lambda row: int(row["order"]))
 
     result["source_references"] = references
     result["research_notes"] = research_notes
