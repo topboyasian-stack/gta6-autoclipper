@@ -406,10 +406,10 @@ def research_episode_topic(
         "Use only the retrieved page text below for factual claims, not model memory. "
         "Identify supported facts, important limits/conditions, common misconceptions, and which URLs support each fact. "
         "Do not invent measurements, statistics, capacities, prices or performance guarantees. "
-        "Return JSON only with keys research_notes, important_caveats and unsupported_claims.\\n"
+        "Return JSON only with keys research_notes, important_caveats and unsupported_claims.\n"
         f"Topic: {topic}\nViewer question: {engineering_question}\\n"
         f"Additional focus: {user_guidance or 'None'}\n\n"
-        f"Retrieved source pages:\\n{retrieved_pages}"
+        f"Retrieved source pages:\n{retrieved_pages}"
     )
     summary_response = client.models.generate_content(
         model=model,
