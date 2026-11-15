@@ -311,7 +311,7 @@ def render_engineering_episode(
                 f",drawtext=fontfile='{safe_font}':textfile='{safe_title_path}':"
                 "fontcolor=white:fontsize=40:borderw=3:bordercolor=black:"
                 "box=1:boxcolor=black@0.48:boxborderw=18:"
-                "x=(w-text_w)/2:y=h-230"
+                "x=(w-text_w)/2:y=h-230[v]"
             )
             command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source)]
             if source_info["has_audio"] and keep_scene_audio:
