@@ -497,6 +497,14 @@ def write_engineering_export_notes(project_dir: Path, final_video: Path, manifes
     """Write an evidence-aware YouTube metadata sidecar for the reviewed export."""
     project_dir = Path(project_dir)
     brief = validate_episode_brief(project_dir / "episode_brief.json")
+    music_license_path = project_dir / "audio" / "music_license.json"
+    narration_meta_path = project_dir / "audio" / "narration.json"
+    caption_qc_path = project_dir / "captions" / "caption_qc.json"
+    music_license = json.loads(music_license_path.read_text(encoding="utf-8")) if music_license_path.exists() else {}
+    narration_meta = json.loads(narration_meta_path.read_text(encoding="utf-8")) if narration_meta_path.exists() else {}
+    caption_qc = json.loads(caption_qc_path.read_text(encoding="utf-8")) if caption_qc_path.exists() else {}
+    music_credit = str(music_license.get("attribution", "")).strip()
+    music_license_url = str(music_license.get("license_url", "")).strip()
     notes = [
         f"Suggested title: {brief['episode_title']} #Shorts",
         "",
@@ -505,12 +513,24 @@ def write_engineering_export_notes(project_dir: Path, final_video: Path, manifes
         "",
         str(brief["engineering_takeaway"]),
         "",
+        "Music credit (required by the track licence):",
+        music_credit,
+        music_license_url,
+        "",
         "Technical references used during research:",
         *[f"- {url}" for url in brief["source_references"]],
         "",
+        "Production and caption checks:",
+        f"Voice engine: {narration_meta.get('tts_engine', 'Not recorded')}",
+        f"Voice model: {narration_meta.get('voice_id', 'Not recorded')} ({narration_meta.get('voice_model_license', 'See project evidence')})",
+        f"Caption status: {caption_qc.get('status', 'Not recorded')}",
+        f"Caption script match: {caption_qc.get('script_match_ratio', 'Not recorded')}",
+        "Narration was generated from the saved episode script. Captions were generated from the rendered narration and checked against that script.",
+        "The export is blocked automatically when caption verification does not pass.",
+        "",
         "Production notes:",
         "Original animated engineering explainer assembled from supplied Google Flow scene exports.",
-        "Review technical accuracy, source licences, Flow output rights, narration, music and captions before publishing.",
+        "Verify engineering claims against the listed references and confirm Flow output rights before publishing.",
         "AI-generated visuals may require altered-content disclosure when they realistically depict events or places that never existed.",
         "This production workflow does not guarantee YouTube Partner Program acceptance or monetisation.",
         "",
