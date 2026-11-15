@@ -648,6 +648,7 @@ def synthesize_episode_narration(
     if len(words) < 35:
         raise ValueError("The original episode script is too short for narration. Add a complete spoken script.")
     voice = ensure_voice_model(workspace, voice_id)
+    actual_voice_id = str(voice["voice_id"])
 
     audio_dir = project_dir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
@@ -655,7 +656,7 @@ def synthesize_episode_narration(
     metadata_path = audio_dir / "narration.json"
     script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
     existing = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
-    if existing.get("script_sha256") == script_hash and existing.get("voice_id") == voice_id and narration_path.exists():
+    if existing.get("script_sha256") == script_hash and existing.get("voice_id") == actual_voice_id and narration_path.exists():
         return {"audio": narration_path, "metadata": metadata_path, "reused": True, "details": existing}
 
     try:
@@ -669,9 +670,11 @@ def synthesize_episode_narration(
         voice_instance.synthesize_wav(script, wav_file)
 
     details = {
-        "voice_id": voice_id,
-        "voice_language": VOICE_MODELS[voice_id]["language"],
-        "voice_model_license": "CC0 (verified from downloaded MODEL_CARD and rdh base)",
+        "voice_id": actual_voice_id,
+        "voice_language": VOICE_MODELS[actual_voice_id]["language"],
+        "voice_model_license": voice["license"],
+        "voice_training_base": voice["training_base"],
+        "voice_fallback_used": voice["fallback_used"],
         "voice_model_card": str(voice["model_card"]),
         "tts_engine": "Piper TTS",
         "tts_engine_license": "GPL-3.0-or-later",
