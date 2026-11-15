@@ -1,7 +1,22 @@
 import json
 from pathlib import Path
 
-NOTEBOOK = Path("notebooks/GTA6_AutoClipper_Browser_Only.ipynb")
+ROOT = Path(__file__).resolve().parents[1]
+NOTEBOOK = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+README = ROOT / "README.md"
+GUIDE = ROOT / "docs" / "COLAB_PRODUCTION_STUDIO.md"
+LEGACY_ROOT_NOTEBOOK = ROOT / "GTA6_AutoClipper_GrowthReady.ipynb"
+ARCHIVED_NOTEBOOK = ROOT / "archive" / "GTA6_AutoClipper_GrowthReady_DEPRECATED.ipynb"
+COLAB_URL = (
+    "https://colab.research.google.com/github/topboyasian-stack/"
+    "gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb"
+)
+
+
+def source_text(cell):
+    source = cell.get("source", "")
+    return "".join(source) if isinstance(source, list) else source
+
 
 def main():
     notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
@@ -14,23 +29,40 @@ def main():
         if cell.get("cell_type") != "code":
             continue
         code_count += 1
-        source = cell.get("source", "")
-        if isinstance(source, list):
-            source = "".join(source)
-        compile(source, f"{NOTEBOOK}:cell-{index}", "exec")
+        compile(source_text(cell), f"{NOTEBOOK}:cell-{index}", "exec")
 
-    all_source = "\n".join(
-        "".join(cell.get("source", [])) if isinstance(cell.get("source"), list) else cell.get("source", "")
-        for cell in cells
-    )
+    all_source = "\n".join(source_text(cell) for cell in cells)
     required = [
-        "Gaming highlights", "AI scene assembly", "Long-form video",
-        "Multi-clip compilation", "Google Drive", "ffmpeg", "files.download",
+        "Gaming highlights",
+        "AI scene assembly",
+        "Long-form video",
+        "Multi-clip compilation",
+        "Google Drive",
+        "ffmpeg",
+        "files.download",
+        "project_state.json",
+        "Reuse this project's saved sources",
+        "180",
     ]
     missing = [term for term in required if term not in all_source]
     assert not missing, f"Notebook is missing required workflow features: {missing}"
     assert code_count >= 4, "Expected setup, controls, source, processing and export code cells."
-    print(f"PASS: {NOTEBOOK} is valid JSON and all {code_count} Python cells compile.")
+
+    assert COLAB_URL in README.read_text(encoding="utf-8"), "README must link to the canonical main-branch notebook."
+    assert COLAB_URL in GUIDE.read_text(encoding="utf-8"), "Colab guide must link to the canonical main-branch notebook."
+    assert COLAB_URL in source_text(cells[0]), "The notebook opening cell must link to itself in Colab."
+
+    assert not LEGACY_ROOT_NOTEBOOK.exists(), "The retired GrowthReady notebook must not remain as an active root-level entry point."
+    archived = json.loads(ARCHIVED_NOTEBOOK.read_text(encoding="utf-8"))
+    archive_intro = "\n".join(source_text(cell) for cell in archived.get("cells", [])[:2])
+    assert "Do not use this notebook for new production" in archive_intro, "Archived notebook needs a deprecation warning."
+    assert COLAB_URL in archive_intro, "Archived notebook must redirect users to the canonical notebook."
+
+    print(
+        f"PASS: canonical notebook is valid JSON; all {code_count} Python cells compile; "
+        "single-entry-point links and archive guard pass."
+    )
+
 
 if __name__ == "__main__":
     main()
