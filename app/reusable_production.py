@@ -619,7 +619,7 @@ Target narration length: about {target_seconds} seconds (aim for roughly {max(45
 Technical research notes (the only facts you may assert):
 {research_notes}
 
-Reference URLs (record these; do not claim to have opened or verified them):
+Verified technical source URLs retrieved for this episode:
 {chr(10).join(references)}
 
 Optional script draft to improve, if present:
@@ -733,6 +733,10 @@ def synthesize_episode_narration(
     metadata_path = audio_dir / "narration.json"
     script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
     voice_fingerprint = _file_fingerprint(Path(voice["model"]))
+    shutil.copy2(voice["model_card"], audio_dir / "voice_MODEL_CARD.txt")
+    engine_license_path = Path(voice["directory"]) / "PIPER_ENGINE_LICENSE.txt"
+    if engine_license_path.exists():
+        shutil.copy2(engine_license_path, audio_dir / "PIPER_ENGINE_LICENSE.txt")
     existing = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
     if (
         existing.get("script_sha256") == script_hash
@@ -768,10 +772,6 @@ def synthesize_episode_narration(
         "word_count": len(words),
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    shutil.copy2(voice["model_card"], audio_dir / "voice_MODEL_CARD.txt")
-    engine_license_path = Path(voice["directory"]) / "PIPER_ENGINE_LICENSE.txt"
-    if engine_license_path.exists():
-        shutil.copy2(engine_license_path, audio_dir / "PIPER_ENGINE_LICENSE.txt")
     _write_json(metadata_path, details)
     (audio_dir / "narration_script.txt").write_text(script + "\n", encoding="utf-8")
     return {"audio": narration_path, "metadata": metadata_path, "reused": False, "details": details}
@@ -853,6 +853,7 @@ def create_automatic_episode_captions(
         old_qc.get("script_sha256") == script_hash
         and old_qc.get("audio_sha256") == audio_hash
         and old_qc.get("model_size") == model_size
+        and old_qc.get("pipeline_version") == PIPELINE_VERSION
         and srt_path.exists()
     ):
         return {"srt": srt_path, "qc": qc_path, "details": old_qc, "reused": True}
