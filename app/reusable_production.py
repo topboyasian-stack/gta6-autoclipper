@@ -266,35 +266,52 @@ def ensure_voice_model(workspace: Path, voice_id: str = "en_US-joe-medium") -> d
     )
 
 def ensure_shared_music_library(workspace: Path) -> dict[str, Path]:
-    """Create a reusable Drive music library and seed it with a verified CC-BY track."""
+    """Create a persistent Drive music library and seed all verified CC-BY tracks once."""
     library = Path(workspace) / "assets" / "music_library"
     library.mkdir(parents=True, exist_ok=True)
-    audio_path = library / DEFAULT_MUSIC["filename"]
-    license_path = library / (audio_path.stem + ".license.json")
+    available = []
+    failures = []
 
-    has_registered_track = False
-    for sidecar in library.glob("*.license.json"):
+    for track in DEFAULT_MUSIC_TRACKS:
+        audio_path = library / track["filename"]
+        license_path = library / (audio_path.stem + ".license.json")
         try:
-            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        stem = sidecar.name.removesuffix(".license.json")
-        has_audio = any(
-            path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
-            for path in library.glob(stem + ".*")
+            if not audio_path.exists() or audio_path.stat().st_size < 250_000:
+                _download(track["download_url"], audio_path, min_bytes=250_000)
+            if not license_path.exists():
+                _write_json(license_path, track)
+            metadata = json.loads(license_path.read_text(encoding="utf-8"))
+            if (
+                audio_path.exists()
+                and metadata.get("commercial_use")
+                and metadata.get("license_url")
+                and metadata.get("attribution")
+            ):
+                available.append((audio_path, license_path, metadata))
+        except Exception as exc:
+            failures.append({
+                "title": track["title"],
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+            (library / f"{audio_path.stem}.download_error.txt").write_text(
+                f"Could not download this default music track: {type(exc).__name__}: {exc}\n"
+                "The studio will skip it and use another track with a complete licence record.\n",
+                encoding="utf-8",
+            )
+
+    if not available:
+        raise FileNotFoundError(
+            "No default or registered commercial-use music track is available. "
+            "Check the internet connection or add an audio file with a complete licence sidecar."
         )
-        if has_audio and metadata.get("commercial_use") and metadata.get("license_url") and metadata.get("attribution"):
-            has_registered_track = True
-            break
 
-    if not has_registered_track:
-        if not audio_path.exists() or audio_path.stat().st_size < 1_000_000:
-            _download(DEFAULT_MUSIC["download_url"], audio_path, min_bytes=1_000_000)
-        if not license_path.exists():
-            _write_json(license_path, DEFAULT_MUSIC)
-
-    return {"directory": library, "audio": audio_path, "license": license_path}
-
+    return {
+        "directory": library,
+        "audio": available[0][0],
+        "license": available[0][1],
+        "available_count": len(available),
+        "download_failures": failures,
+    }
 
 def select_shared_music(workspace: Path, project_dir: Path) -> dict[str, Path | dict]:
     """Rotate through music-library tracks that have an explicit rights sidecar."""
