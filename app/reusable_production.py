@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -826,7 +827,7 @@ def synthesize_episode_narration(
     workspace: Path,
     voice_id: str = "en_US-joe-medium",
 ) -> dict:
-    """Create episode-specific speech from the saved script using a verified CC0 Piper voice."""
+    """Create episode-specific speech using a Piper voice with verified model-card licensing provenance."""
     project_dir = Path(project_dir)
     brief = json.loads((project_dir / "episode_brief.json").read_text(encoding="utf-8"))
     script = str(brief.get("original_script", "")).strip()
