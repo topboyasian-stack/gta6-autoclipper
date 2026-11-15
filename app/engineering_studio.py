@@ -372,8 +372,30 @@ def render_engineering_episode(
     narration = _find_optional_audio(audio_dir, "narration")
     music = _find_optional_audio(audio_dir, "music")
     captions = project_dir / "captions" / "episode.srt"
-    if captions.exists() and captions.stat().st_size == 0:
-        raise ValueError("captions/episode.srt exists but is empty. Remove it or add reviewed captions.")
+    caption_qc_path = project_dir / "captions" / "caption_qc.json"
+    music_license_path = project_dir / "audio" / "music_license.json"
+    narration_meta_path = project_dir / "audio" / "narration.json"
+
+    if narration is None or not narration.is_file():
+        raise FileNotFoundError("Episode narration is missing. Run the automatic narration stage before rendering.")
+    if music is None or not music.is_file():
+        raise FileNotFoundError("Licensed background music is missing. Run the shared music-library stage before rendering.")
+    if not captions.is_file() or captions.stat().st_size == 0:
+        raise FileNotFoundError("Automatic SRT captions are missing. Run the caption generation stage before rendering.")
+    if not caption_qc_path.is_file():
+        raise FileNotFoundError("Caption quality report is missing. Automatic caption verification must run before rendering.")
+    caption_qc = json.loads(caption_qc_path.read_text(encoding="utf-8"))
+    if caption_qc.get("status") != "AUTO_VERIFIED":
+        raise ValueError(
+            "Caption quality checks did not pass. Inspect captions/episode.srt and "
+            "captions/caption_qc_report.txt, then rerun caption generation before exporting."
+        )
+    if not music_license_path.is_file():
+        raise FileNotFoundError("The selected background track has no saved license record.")
+    music_license = json.loads(music_license_path.read_text(encoding="utf-8"))
+    if not music_license.get("commercial_use") or not music_license.get("license_url") or not music_license.get("attribution"):
+        raise PermissionError("The selected background track is missing commercial-use or attribution details.")
+    narration_meta = json.loads(narration_meta_path.read_text(encoding="utf-8")) if narration_meta_path.exists() else {}
 
     final_draft = work_dir / f"{Path(project_dir).name}_engineering_short_{width}x{height}_draft.mp4"
     command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(assembled)]
@@ -386,20 +408,26 @@ def render_engineering_episode(
         next_index += 1
     if music:
         music_index = next_index
-        command += ["-i", str(music)]
+        command += ["-stream_loop", "-1", "-i", str(music)]
         next_index += 1
 
     filters: list[str] = []
     mix_inputs: list[str] = []
     if narration or music:
-        scene_gain = "0.18" if narration else "0.55"
+        scene_gain = "0.14"
         filters.append(f"[0:a]volume={scene_gain}[scene]")
         mix_inputs.append("[scene]")
         if narration_index is not None:
             filters.append(f"[{narration_index}:a]aresample=48000,volume=1.0[narration]")
             mix_inputs.append("[narration]")
         if music_index is not None:
-            filters.append(f"[{music_index}:a]aresample=48000,volume=0.10[music]")
+            target_duration = sum(float(item["duration_seconds"]) for item in report_scenes)
+            fade_start = max(0.0, target_duration - 1.5)
+            filters.append(
+                f"[{music_index}:a]aresample=48000,volume=0.055,"
+                f"atrim=duration={target_duration:.3f},"
+                f"afade=t=out:st={fade_start:.3f}:d=1.5[music]"
+            )
             mix_inputs.append("[music]")
         labels = "".join(mix_inputs)
         filters.append(
@@ -446,12 +474,20 @@ def render_engineering_episode(
         "output_format": "YouTube Shorts 9:16",
         "resolution": f"{width}x{height}",
         "duration_seconds": round(float(output_info["duration"]), 3),
-        "narration_included": bool(narration),
-        "music_included": bool(music),
-        "captions_burned_in": bool(captions.exists()),
+        "narration_included": True,
+        "narration_voice_id": narration_meta.get("voice_id"),
+        "narration_voice_license": narration_meta.get("voice_model_license"),
+        "music_included": True,
+        "music_title": music_license.get("title"),
+        "music_artist": music_license.get("artist"),
+        "music_license": music_license.get("license"),
+        "music_attribution": music_license.get("attribution"),
+        "captions_burned_in": True,
+        "caption_status": caption_qc.get("status"),
+        "caption_script_match_ratio": caption_qc.get("script_match_ratio"),
         "scenes": report_scenes,
         "technical_sources": brief["source_references"],
-        "review_required": True,
+        "review_required": False,
     }
     _write_json(work_dir / "render_report.json", report)
     return final_draft
