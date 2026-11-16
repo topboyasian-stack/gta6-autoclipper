@@ -104,5 +104,34 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("kids_story", source)
 
 
+    def test_all_modes_use_separate_auto_managed_drive_projects(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        setup = "".join(notebook["cells"][1]["source"])
+        preparation = "".join(notebook["cells"][2]["source"])
+        modes = (
+            "Gaming highlights",
+            "AI scene assembly",
+            "Long-form video",
+            "Kids story production",
+            "Animated engineering explainer",
+        )
+        for mode in modes:
+            with self.subTest(mode=mode):
+                self.assertIn(f'"{mode}"', setup + preparation)
+
+        self.assertIn("def _refresh_project_paths", setup)
+        self.assertIn("project_widget.observe(_refresh_project_paths", setup)
+        self.assertIn("mode_widget.observe(_on_mode_changed", setup)
+        self.assertIn("INCOMING_DIR / _safe_project_folder(project_name)", setup)
+        self.assertIn("PROJECT_DIR = PROJECTS_DIR / safe_project_name", preparation)
+        self.assertIn('if SOURCE_MODE == "reuse" and not PROJECT_NAME:', preparation)
+        self.assertIn("input_folder.mkdir(parents=True, exist_ok=True)", preparation)
+        self.assertIn('old_state.get("mode") not in (None, MODE)', preparation)
+        docs = (ROOT / "docs" / "COLAB_PRODUCTION_STUDIO.md").read_text(encoding="utf-8")
+        self.assertIn("incoming/<Project ID>/", docs)
+        self.assertIn("projects/<Project ID>/", docs)
+
+
 if __name__ == "__main__":
     unittest.main()

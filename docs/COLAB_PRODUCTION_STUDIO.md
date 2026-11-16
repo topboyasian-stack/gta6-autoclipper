@@ -25,19 +25,25 @@ The same processing path handles scene normalization, audio consistency, aspect-
 1. Open the Colab link above. Do not upload the `.ipynb` file into Colab.
 2. Run the setup cell and allow Google Drive access when prompted.
 3. In the control panel, choose the production mode and output format.
-4. For the first source import, choose **Upload file(s) from this device once** or **Use a folder already in Google Drive**.
-5. Give the project a stable name, such as `GTA6_Scene_Test`.
-6. Enter the actual rights basis for the selected video and audio, then confirm it.
+4. The Project ID is generated automatically for every new production mode. Its matching Drive intake folder appears in the **Drive folder** field as `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`.
+5. For source import, choose **Upload file(s) from this device once** or **Use a folder already in Google Drive**. For a later session, choose **Reuse this project's saved sources** and enter the same Project ID.
+6. Enter the actual rights basis for the selected video and audio, then confirm it for those exact files.
 7. Run the source and processing cells. Review the preview before exporting.
 
 For the current AI-scene test, place the already-generated scene videos in one Drive folder or select them together in the first upload. Prefix filenames with `03_` and `04_` if those scenes should appear in that order. The notebook processes the supplied files; it does not consume more scene-generation credits.
 
 ## Resume without uploading again
 
-The notebook saves the project under:
+Every mode uses the same project manager and receives a unique Project ID. The matching intake folder is:
 
 ```
-MyDrive/GTA6_AutoClipper/projects/<project-name>/
+MyDrive/GTA6_AutoClipper/incoming/<Project ID>/
+```
+
+The permanent project is saved separately under:
+
+```
+MyDrive/GTA6_AutoClipper/projects/<Project ID>/
 ```
 
 This includes:
@@ -46,7 +52,9 @@ This includes:
 - `exports/` — final MP4 and export ZIP
 - `project_state.json` — project settings and source identity
 
-On a later Colab session, use the same project name and select **Reuse this project's saved sources**. Previously prepared scene files are cached by source size, modification time, output dimensions, and audio setting, so unchanged files do not need to be normalized again.
+On a later Colab session, select **Reuse this project's saved sources** and enter the same Project ID. Project state records the production mode; the studio refuses to reuse a project ID for a different mode, so an engineering project cannot accidentally be overwritten by a kids story or gaming edit. Previously prepared scene files are cached by source size, modification time, output dimensions, and audio setting, so unchanged files do not need to be normalized again.
+
+This applies to **Gaming highlights**, **AI scene assembly**, **Long-form video**, **Kids story production**, and **Animated engineering explainer**. Each receives its own `incoming/<Project ID>/` intake and `projects/<Project ID>/` workspace. Shared assets remain in the single `assets/` folder; the engineering voice, research and caption pipeline is still exclusive to Engineering Explainer mode.
 
 Colab runtimes are temporary and may terminate. Keep the project in Google Drive rather than relying on `/content` as permanent storage.
 
@@ -74,8 +82,8 @@ Gaming highlight detection in the separate gaming mode remains a signal-based fi
 
 Choose **Kids story production — Puffy / visual story (no narration)** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
 
-1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. If Project ID is blank, the notebook creates a date-stamped project ID from the story title.
-2. Select **Use a folder already in Google Drive**. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<story-title>/`. You can change it after selecting the mode.
+1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. The Project ID and its separate incoming folder are created automatically.
+2. Leave the auto-generated Project ID in place for this new story. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`. This is a separate intake folder, not the Engineering Explainer project.
 3. Put the approved Google Flow MP4 scenes in that folder. Use numeric filenames such as `scene_001.mp4`, `scene_002.mp4`, and `scene_003.mp4`; the studio orders them naturally. Two or more scenes are required.
 4. Choose **YouTube Shorts — vertical 9:16** or **Standard YouTube — horizontal 16:9**. The standard format fits portrait Flow scenes on a landscape canvas without cropping the main picture.
 5. Keep **Mute original source/scene audio** unchecked to preserve Flow sound effects and ambience. Selecting Kids Story resets this setting to unmuted by default.
@@ -112,7 +120,7 @@ This is a reusable episode engine, not a one-off notebook. Every episode receive
 3. Click **Generate six Flow scene prompts**. The studio uses the Gemini API key saved in Colab Secrets and displays a copy-ready prompt for each scene. The prompt pack is saved under My Drive/GTA6_AutoClipper/flow_prompt_packs/ as Markdown and JSON. This step consumes Gemini API quota, not Flow video credits.
 4. Open Google Flow and use **Veo 3.1 Lite**, **8 seconds**, **vertical 9:16**, **720p** for each clip. Google currently lists 10 credits per Veo 3.1 Lite generation for non-Ultra plans; check the visible credit cost in Flow before generating. If the account offers 1080p upscaling at no extra credits, use it after generation. Model names and costs can change.
 5. Copy each of the six prompts into Flow and generate six clips in the same project, following the visual continuity guide. Download/export the approved clips as MP4 files.
-6. The incoming folder changes to an episode-specific path under MyDrive/GTA6_AutoClipper/incoming/<episode-slug>/. Put only that episode's six Flow MP4 clips in this folder.
+6. The incoming folder changes to the episode's dedicated path under `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`. Put only that episode's six Flow MP4 clips in this folder.
 7. Enter the actual rights basis for the Flow clips/audio and confirm it only after checking the applicable rights. This is a rights record, not a claim that every Flow plan or third-party soundtrack is automatically cleared.
 8. Leave the automatic research/storyboard switches enabled. Select the default narrator voice, or change it once; the preference is saved in assets/studio_config.json.
 9. Run the source/preparation cell to copy the scene files into permanent Drive storage, then run the processing cell and preview the result.
