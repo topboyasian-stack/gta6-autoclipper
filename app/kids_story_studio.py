@@ -195,6 +195,8 @@ def prepare_puffy_story_voice(
     import hashlib
     import subprocess
 
+    from app.reusable_production import _write_json
+
     narration_path = Path(narration_path)
     if not narration_path.is_file():
         raise FileNotFoundError(f"Base Puffy narrator audio is missing: {narration_path}")
