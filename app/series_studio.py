@@ -525,11 +525,15 @@ def approve_series_voice_cast(series_dir: Path, approvals: dict[str, bool]) -> d
         audio = Path(audition["audio_path"])
         if not audio.is_file() or audio.stat().st_size < 1000:
             raise FileNotFoundError(f"The {item} audition file is missing or incomplete.")
+    candidate_fingerprint = _fingerprint({
+        item["id"]: item["voice_profile"]["voice_id"] for item in bible["cast"]
+    })
     locked = {
         "series_id": bible["series_id"],
         "status": "locked",
         "locked_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "approval_basis": "Human audition and explicit approval of every cast voice.",
+        "candidate_fingerprint": candidate_fingerprint,
         "characters": auditions["characters"],
     }
     return _write_json(Path(series_dir) / "voice_cast.json", locked) and locked
@@ -548,10 +552,18 @@ def approve_series_character_references(series_dir: Path, approvals: dict[str, b
             raise FileNotFoundError(
                 f"Missing or incomplete reference image for {character['name']}: {asset}"
             )
+        image_bytes = asset.read_bytes()
+        if not image_bytes.startswith(b"\\x89PNG\\r\\n\\x1a\\n") or len(image_bytes) < 24:
+            raise ValueError(f"Reference image for {character['name']} is not a valid PNG file.")
+        import struct
+        image_width, image_height = struct.unpack(">II", image_bytes[16:24])
+        if image_width < 512 or image_height < 512:
+            raise ValueError(f"Reference image for {character['name']} must be at least 512x512 pixels.")
         assets[character["id"]] = {
             "path": character["reference_asset"],
-            "sha256": hashlib.sha256(asset.read_bytes()).hexdigest(),
+            "sha256": hashlib.sha256(image_bytes).hexdigest(),
             "size_bytes": asset.stat().st_size,
+            "dimensions": [image_width, image_height],
         }
     locked = {
         "series_id": bible["series_id"],
@@ -617,6 +629,19 @@ def synthesize_series_dialogue(
         raise PermissionError("Character voices are not locked. Listen to and approve the distinct voice auditions first.")
     if not isinstance(references, dict) or references.get("status") != "locked":
         raise PermissionError("Character reference images are not approved. Lock all canonical character references first.")
+    current_reference_ids = {character["id"]: character["reference_asset"] for character in bible["cast"]}
+    for character_id, relative_path in current_reference_ids.items():
+        approved_asset = references.get("assets", {}).get(character_id, {})
+        reference_path = Path(series_dir) / relative_path
+        if not reference_path.is_file() or hashlib.sha256(reference_path.read_bytes()).hexdigest() != approved_asset.get("sha256"):
+            raise PermissionError(
+                f"The approved reference for {character_id} has changed or is missing. Review and approve it again."
+            )
+    candidate_fingerprint = _fingerprint({
+        item["id"]: item["voice_profile"]["voice_id"] for item in bible["cast"]
+    })
+    if voice_cast.get("candidate_fingerprint") != candidate_fingerprint:
+        raise PermissionError("The proposed voice mapping changed after approval. Re-audition and lock the cast again.")
     sources = validate_series_scene_files(project_dir, scene_files)
     package = _read_json(Path(project_dir) / "series_episode_package.json")
     actual_durations = [_probe_duration(path) for path in sources]
