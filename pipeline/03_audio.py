@@ -169,8 +169,9 @@ def generate_audio_and_subtitles(
     except ImportError as exc:
         raise RuntimeError("faster-whisper is required for word-timed captions. Install project requirements.") from exc
 
-    import torch
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = os.getenv("MYSTERY_WHISPER_DEVICE", "cpu").strip().lower()
+    if device not in {"cpu", "cuda"}:
+        device = "cpu"
     compute_type = "float16" if device == "cuda" else "int8"
     model = WhisperModel(whisper_model_name, device=device, compute_type=compute_type)
     all_words: list[dict] = []
