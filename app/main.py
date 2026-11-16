@@ -53,7 +53,7 @@ async def protect_private_studio_api(request: Request, call_next):
     # Quick Cloudflare tunnels are reachable by URL, so all API data and media
     # routes require the per-runtime token. Static HTML/CSS/JS contain no data.
     if STUDIO_ACCESS_TOKEN and request.url.path.startswith("/api/"):
-        supplied = request.headers.get("x-studio-token", "") or request.query_params.get("access_token", "")
+        supplied = request.headers.get("x-studio-token", "") or request.cookies.get("creator_studio_session", "")
         import hmac
         if not hmac.compare_digest(supplied, STUDIO_ACCESS_TOKEN):
             return JSONResponse({"detail": "Your private Studio session has expired. Reopen the dashboard link from Colab."}, status_code=401)
@@ -667,11 +667,22 @@ from app.studio_dashboard import (
 
 
 @app.get("/studio", response_class=HTMLResponse)
-def creator_studio_home():
+def creator_studio_home(access_token: str = ""):
     dashboard = ROOT / "app" / "static" / "studio.html"
     if not dashboard.is_file():
         raise HTTPException(503, "Creator Studio dashboard assets are missing.")
-    return dashboard.read_text(encoding="utf-8")
+    response = HTMLResponse(dashboard.read_text(encoding="utf-8"))
+    if STUDIO_ACCESS_TOKEN:
+        import hmac
+        if not access_token or not hmac.compare_digest(access_token, STUDIO_ACCESS_TOKEN):
+            raise HTTPException(401, "Open the private dashboard link printed by the Colab setup cell.")
+        # Keep the access token in an HttpOnly session cookie for media previews/downloads.
+        # It is never placed on media URLs or written to server access logs.
+        response.set_cookie(
+            "creator_studio_session", STUDIO_ACCESS_TOKEN,
+            max_age=3600, httponly=True, secure=True, samesite="strict", path="/",
+        )
+    return response
 
 
 @app.get("/api/studio/health")
