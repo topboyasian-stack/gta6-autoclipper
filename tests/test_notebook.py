@@ -52,9 +52,11 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
             "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
             for cell in notebook["cells"]
         )
-        self.assertIn('"av<19"', source)
+        self.assertIn('"av==17.1.0"', source)
         self.assertIn('"faster-whisper>=1.1,<2"', source)
-        self.assertLess(source.index('"av<19"'), source.index('"faster-whisper>=1.1,<2"'))
+        self.assertLess(source.index('"av==17.1.0"'), source.index('"faster-whisper>=1.1,<2"'))
+        self.assertIn('av_major >= 18', source)
+        self.assertIn('Audio decoder ready: PyAV', source)
 
     def test_only_one_active_colab_entry_point_is_documented(self):
         self.assertFalse((ROOT / "GTA6_AutoClipper_GrowthReady.ipynb").exists())
