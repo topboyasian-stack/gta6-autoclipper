@@ -14,6 +14,7 @@ from app.reusable_production import (
     _extract_technical_pdf_text,
     fetch_verified_technical_sources,
     _extract_storyboard_frame,
+    generate_episode_from_flow_scenes,
     create_automatic_episode_captions,
     register_music_track,
     select_shared_music,
@@ -142,6 +143,86 @@ class ReusableProductionTests(unittest.TestCase):
                     _extract_storyboard_frame(
                         Path("bad_flow_scene.mp4"), 2.0, target
                     )
+
+
+    def test_text_only_storyboard_fallback_continues_when_contact_sheet_fails(self):
+        from unittest.mock import Mock
+        from google.genai import Client
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            project.mkdir()
+            scene_files = []
+            for index in range(1, 7):
+                scene = project / f"{index:02d}.mp4"
+                scene.write_bytes(b"test clip placeholder")
+                scene_files.append(scene)
+
+            manifest = [
+                {
+                    "order": index,
+                    "scene_file": f"{index:02d}.mp4",
+                    "scene_title": f"Stage {index}",
+                    "visual_description": (
+                        "Visual content not machine-reviewed; retained in supplied order."
+                    ),
+                    "engineering_explanation": f"Explain stage {index} of the process.",
+                }
+                for index in range(1, 7)
+            ]
+            payload = {
+                "episode_title": "How a Parking Lot Stores a Storm",
+                "engineering_question": "How can a parking lot temporarily store rainwater?",
+                "hook": "What if a parking lot could hold a storm?",
+                "original_script": (
+                    "Rain falls onto the parking lot and moves through a permeable surface. "
+                    "Below it, layers of clean stone create temporary storage space. "
+                    "Water fills the connected gaps between the stones, then slowly drains "
+                    "into the soil or a designed outlet. This reduces immediate runoff, "
+                    "but the exact performance depends on the site design and soil conditions."
+                ),
+                "engineering_takeaway": (
+                    "A permeable parking lot can temporarily store stormwater in an underground "
+                    "stone reservoir before it drains away."
+                ),
+                "scene_manifest": manifest,
+            }
+            mock_models = SimpleNamespace(
+                generate_content=Mock(return_value=SimpleNamespace(text=json.dumps(payload)))
+            )
+            mock_client = SimpleNamespace(models=mock_models)
+
+            with patch(
+                "app.reusable_production._extract_scene_contact_sheet",
+                side_effect=RuntimeError("FFmpeg pad filter failed"),
+            ), patch("google.genai.Client", return_value=mock_client):
+                result = generate_episode_from_flow_scenes(
+                    project_dir=project,
+                    scene_files=scene_files,
+                    episode_title="How a Parking Lot Can Store a Storm",
+                    engineering_question="How can a parking lot temporarily store rainwater beneath its surface?",
+                    research_notes=(
+                        "Permeable pavement allows rainwater to pass into a stone reservoir. "
+                        "The stored water can infiltrate into suitable soil or move to an outlet. "
+                        "Design depends on soil, groundwater and maintenance."
+                    ),
+                    source_references=["https://www.epa.gov/green-infrastructure"],
+                    gemini_api_key="test-gemini-api-key",
+                    target_seconds=47,
+                )
+
+            self.assertEqual(
+                result["storyboard_visual_review"],
+                "skipped_after_frame_extraction_error",
+            )
+            self.assertIn("text-only", result["script_generation_mode"])
+            contents = mock_models.generate_content.call_args.kwargs["contents"]
+            self.assertEqual(len(contents), 1)
+            self.assertIn("VISUAL REVIEW UNAVAILABLE", contents[0])
+            self.assertIn("Keep the exact supplied natural filename order", contents[0])
+            manifest_text = (project / "scene_manifest.csv").read_text(encoding="utf-8")
+            self.assertIn("auto_generated_needs_content_QC_no_visual_review", manifest_text)
+            self.assertIn("FFmpeg pad filter failed", result["storyboard_visual_review_warning"])
 
     def _valid_flow_payload(self):
         return {
