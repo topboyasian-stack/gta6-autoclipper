@@ -121,9 +121,9 @@
     }
   }
 
-  function projectCard(project) {
+  function projectCard(project, index = 0) {
     const card = document.createElement("article");
-    card.className = "project-card";
+    card.className = "project-card" + (index === 0 ? " featured" : "");
     const cover = document.createElement("div");
     cover.className = "project-cover " + (project.mode === "Kids story production" ? "cover-puffy" : project.mode === "Animated engineering explainer" ? "cover-engineering" : "cover-general");
     const mark = document.createElement("span");
@@ -131,6 +131,21 @@
     mark.textContent = project.mode === "Kids story production" ? "✿" : project.mode === "Animated engineering explainer" ? "⌬" : "▣";
     const coverMode = document.createElement("span");
     coverMode.textContent = modeLabel(project.mode);
+    const coverMedia = project.media?.draft ? "draft" : project.media?.final_video ? "final_video" : null;
+    if (coverMedia && index < 4) {
+      const thumbnail = document.createElement("video");
+      thumbnail.className = "project-thumbnail";
+      thumbnail.src = mediaUrl(project.id, coverMedia);
+      thumbnail.muted = true;
+      thumbnail.autoplay = true;
+      thumbnail.loop = true;
+      thumbnail.playsInline = true;
+      thumbnail.preload = "metadata";
+      thumbnail.addEventListener("loadedmetadata", () => {
+        if (thumbnail.duration > 2) thumbnail.currentTime = Math.min(1.5, thumbnail.duration / 3);
+      }, {once:true});
+      cover.append(thumbnail);
+    }
     cover.append(mark, coverMode);
 
     const body = document.createElement("div");
@@ -192,7 +207,7 @@
     }
     $("#emptyState").hidden = true;
     grid.hidden = false;
-    projects.slice(0, 12).forEach(project => grid.append(projectCard(project)));
+    projects.slice(0, 12).forEach((project, index) => grid.append(projectCard(project, index)));
   }
 
   function renderAssets(summary) {
