@@ -58,7 +58,10 @@ def generate_kids_story_script(
             raise ValueError(f"Unexpected scene duration for {scene.name}: {duration}")
         durations.append(duration)
     total_duration = sum(durations)
-    target_words = max(45, min(105, int(total_duration * 1.4)))
+    # Aim for a complete spoken story across the scene runtime, not a brief intro
+    # followed by twenty seconds of silent visuals. Puffy narration is later tempo-fitted.
+    target_words = max(50, min(145, int(total_duration * 2.25)))
+    minimum_story_words = max(45, int(target_words * 0.86))
     scene_rows = [{"scene_file": p.name, "duration_seconds": round(d, 2)} for p, d in zip(scenes, durations)]
     fingerprint = _json_fingerprint({
         "pipeline_version": 1,
@@ -76,7 +79,7 @@ def generate_kids_story_script(
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             script = str(cached.get("original_script", "")).strip()
             words = re.findall(r"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*", script)
-            if cached.get("storyboard_fingerprint") == fingerprint and 35 <= len(words) <= target_words + 35:
+            if cached.get("storyboard_fingerprint") == fingerprint and minimum_story_words <= len(words) <= target_words + 25:
                 return cached
         except (OSError, json.JSONDecodeError):
             pass
@@ -136,10 +139,10 @@ STORY RULES:
     lesson = str(result.get("story_lesson", "")).strip()
     script = str(result.get("original_script", "")).strip()
     word_count = len(re.findall(r"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*", script))
-    if len(title) < 3 or len(lesson) < 8 or not (35 <= word_count <= target_words + 35):
+    if len(title) < 3 or len(lesson) < 8 or not (minimum_story_words <= word_count <= target_words + 25):
         raise ValueError(
             f"The generated story package failed its length/content checks (word count {word_count}; "
-            f"target about {target_words}). Nothing was exported. Re-run processing to retry."
+            f"target {minimum_story_words}-{target_words + 25}). Nothing was exported. Re-run processing to retry."
         )
     rows = result.get("scene_manifest")
     expected = [p.name for p in scenes]
