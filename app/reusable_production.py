@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
@@ -425,10 +425,9 @@ def _extract_storyboard_frame(
     scene_file = Path(scene_file)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    scale_filter = (
-        "scale=240:135:force_original_aspect_ratio=decrease,"
-        "pad=240:135:(ow-iw)/2:(oh-ih)/2"
-    )
+    # Scale to a fixed width only. Pillow fits the extracted frame into the contact-sheet tile;
+    # avoiding FFmpeg pad prevents portrait Flow exports from producing invalid pad dimensions.
+    scale_filter = "scale=240:-2"
     attempts = [
         (
             "accurate timestamp seek",
@@ -536,9 +535,15 @@ def _extract_scene_contact_sheet(scene_files: Iterable[Path], output_path: Path)
             )
             with Image.open(frame_path) as frame:
                 thumbnail = frame.convert("RGB")
+            thumbnail.thumbnail((thumb_w, thumb_h), Image.Resampling.LANCZOS)
+            tile = Image.new("RGB", (thumb_w, thumb_h), "black")
+            tile.paste(
+                thumbnail,
+                ((thumb_w - thumbnail.width) // 2, (thumb_h - thumbnail.height) // 2),
+            )
             x = frame_index * thumb_w
             y = row_y + scene_label_h
-            sheet.paste(thumbnail, (x, y))
+            sheet.paste(tile, (x, y))
             frame_label = ("START", "MIDDLE", "END")[frame_index]
             if used_fallback:
                 frame_label += " (fallback)"
@@ -1090,14 +1095,52 @@ def generate_episode_from_flow_scenes(
             existing_brief["storyboard_reused"] = True
             return existing_brief
     work = project_dir / "work" / "engineering"
-    contact_sheet = _extract_scene_contact_sheet(scene_files, work / "flow_storyboard_contact_sheet.jpg")
+    contact_sheet = None
+    storyboard_warning = ""
+    try:
+        contact_sheet = _extract_scene_contact_sheet(
+            scene_files, work / "flow_storyboard_contact_sheet.jpg"
+        )
+    except (RuntimeError, OSError, ValueError) as exc:
+        # A visual storyboard improves scene matching, but it must never block the episode.
+        # The text-only path below preserves the supplied clip order and clearly records that
+        # no machine visual inspection was performed.
+        storyboard_warning = f"{type(exc).__name__}: {exc}"
     references = [str(url).strip() for url in source_references if str(url).strip().startswith(("https://", "http://"))]
     if not references:
         raise ValueError("Add at least one credible technical source URL.")
 
+    if contact_sheet is not None:
+        visual_review_instructions = """
+VISUAL REVIEW AVAILABLE:
+You have a contact sheet made from the actual Google Flow clips.
+Use only details that are genuinely visible when describing a scene.
+You may reorder the supplied clips if that makes the engineering explanation clearer.
+"""
+        visual_analysis_rules = (
+            "- Use actual visible content to choose the clearest engineering story sequence.\n"
+            "- You may reorder supplied scenes into the clearest engineering story using their visible content. "
+            "Set order to consecutive integers from 1 to N.\n"
+        )
+    else:
+        visual_review_instructions = """
+VISUAL REVIEW UNAVAILABLE:
+The contact sheet could not be created. You have not seen the clip frames.
+Treat the numbered Flow clips as illustrative assets already supplied in their intended order.
+Keep the exact natural filename order from scene 1 through scene N. Do not reorder them.
+Do not claim to see, identify or describe specific objects, camera shots or actions in the footage.
+For every visual_description, write exactly:
+"Visual content not machine-reviewed; retained in supplied order."
+"""
+        visual_analysis_rules = (
+            "- Do not claim to have seen the clips or infer specific visible objects/actions.\n"
+            "- Keep the exact supplied natural filename order, with consecutive order numbers from 1 through N.\n"
+        )
+
     prompt = f"""
-You are the original scriptwriter and visual storyboard editor for an educational animated engineering channel.
-Create one factual, engaging YouTube Short using the supplied contact sheet of the actual Google Flow scenes.
+You are the original scriptwriter for an educational animated engineering channel.
+Create one factual, engaging YouTube Short grounded only in the technical research below.
+{visual_review_instructions}
 
 Episode title: {episode_title}
 Viewer's engineering question: {engineering_question}
@@ -1112,34 +1155,35 @@ Optional script draft to improve, if present:
 {draft_script or "[No draft supplied. Write an original script grounded only in the notes above.]"}
 
 Rules:
-- Use the actual visual content in the contact sheet to choose the clearest engineering story sequence.
+{visual_analysis_rules}
 - Do not invent dimensions, capacities, prices, dates, statistics, performance guarantees, or engineering properties.
-- If the scenes show a technical detail not supported by the notes, describe only what is visibly shown and do not present it as verified fact.
 - Make clear any conditional components, design limitations or trade-offs in the notes.
 - Write original narration, not a rewrite of another YouTube channel.
 - Use a strong opening question, clear cause-and-effect explanation and a concise ending.
 - Do not include Markdown, stage directions, sound-effect cues, citations inside the spoken narration, or section headings.
 - Provide concise, factually bounded lower-third scene titles and short scene descriptions. There must be exactly one scene_manifest entry for each supplied file, using every exact filename once.
-- You may reorder supplied scenes into the clearest engineering story using their visible content. Set order to consecutive integers from 1 to N.
 - The script should be readable aloud and not exceed the target time by more than 10 percent.
 - Output valid JSON only with keys:
   "episode_title", "engineering_question", "hook", "original_script",
   "engineering_takeaway", "scene_manifest".
 - scene_manifest must be an array of objects with keys:
   "order", "scene_file", "scene_title", "visual_description", "engineering_explanation".
-- Keep each scene_file exactly as listed below, but you may order scenes into the most understandable real-world engineering sequence:
+- Keep each scene_file exactly as listed below:
 {json.dumps([p.name for p in scene_files], ensure_ascii=False)}
 """
     client = genai.Client(api_key=gemini_api_key.strip())
-    with Image.open(contact_sheet) as image:
-        response = client.models.generate_content(
-            model=model,
-            contents=[prompt, image.copy()],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.35,
-            ),
-        )
+    contents = [prompt]
+    if contact_sheet is not None:
+        with Image.open(contact_sheet) as image:
+            contents.append(image.copy())
+    response = client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.35,
+        ),
+    )
     try:
         result = json.loads(response.text)
     except (TypeError, json.JSONDecodeError) as exc:
@@ -1162,6 +1206,14 @@ Rules:
         raise ValueError("Generated scene order contains a non-integer value.") from exc
     if sorted(order_values) != list(range(1, len(scene_files) + 1)):
         raise ValueError("Generated scene order must contain each number from 1 through N exactly once.")
+    if contact_sheet is None:
+        # Enforce source order and explicit non-observation in code, not merely in the prompt.
+        source_order = {path.name: index for index, path in enumerate(scene_files, 1)}
+        for row in generated_rows:
+            row["order"] = source_order[row["scene_file"]]
+            row["visual_description"] = (
+                "Visual content not machine-reviewed; retained in supplied order."
+            )
     generated_rows.sort(key=lambda row: int(row["order"]))
 
     result["source_references"] = references
@@ -1169,8 +1221,16 @@ Rules:
     result["storyboard_model"] = model
     result["storyboard_fingerprint"] = storyboard_fingerprint
     result["storyboard_reused"] = False
+    result["storyboard_visual_review"] = (
+        "completed" if contact_sheet is not None else "skipped_after_frame_extraction_error"
+    )
+    result["storyboard_visual_review_warning"] = storyboard_warning
     result["storyboard_generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    result["script_generation_mode"] = "Gemini storyboard-assisted"
+    result["script_generation_mode"] = (
+        "Gemini storyboard-assisted"
+        if contact_sheet is not None
+        else "Gemini text-only, source-grounded (visual review skipped)"
+    )
     _write_json(Path(project_dir) / "episode_brief.json", result)
     (Path(project_dir) / "original_script.md").write_text(
         "# Approved episode narration draft\n\n" + result["original_script"].strip() + "\n",
@@ -1193,7 +1253,11 @@ Rules:
                 "visual_description": row.get("visual_description", ""),
                 "engineering_explanation": row.get("engineering_explanation", ""),
                 "source_urls": "; ".join(references),
-                "review_status": "auto_generated_needs_content_QC",
+                "review_status": (
+                    "auto_generated_needs_content_QC"
+                    if contact_sheet is not None
+                    else "auto_generated_needs_content_QC_no_visual_review"
+                ),
             })
     return result
 
