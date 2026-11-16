@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "series_id": "the_217_signal",
+  "series_title": "THE 2:17 SIGNAL",
+  "working_title": true,
+  "format": {
+    "genre": ["serialized science-fiction mystery", "investigative thriller", "character drama"],
+    "target_audience": "general teen-and-adult audience",
+    "tone": ["serious", "grounded", "atmospheric", "emotionally credible", "suspenseful"],
+    "episode_runtime_target_seconds": [180, 240],
+    "primary_delivery": "YouTube standard video, landscape 16:9",
+    "discovery_delivery": "separately edited vertical Shorts that point to full episodes"
+  },
+  "logline": "In a fictional coastal West African city, a radio repairer restores a decommissioned emergency transmitter and begins receiving distress calls exactly one day before the events they describe. With an investigative journalist and a power-grid engineer, she follows the warnings into a buried civic secret—and discovers that changing tomorrow may make someone else's future worse.",
+  "series_premise": "A grounded, character-led mystery about warning systems, public trust, memory, responsibility and the human cost of decisions made in secret. The science-fiction premise drives the plot, but the emotional story is about three people forced to decide what they owe one another and the city they call home.",
+  "setting": {
+    "city": "Aderin Bay",
+    "city_status": "fictional coastal West African city; do not identify it as a real city",
+    "visual_identity": "recognisably coastal and West African without reducing the setting to tourist imagery or stereotypes",
+    "locations": [
+      {"id": "amara_shop", "name": "Dike Radio Works", "description": "A narrow, practical radio repair shop with a metal shutter, crowded shelves, soldering tools, old receivers and a workbench facing the street."},
+      {"id": "relay_station", "name": "Relay Station 6", "description": "A decommissioned public-warning station on a raised service road near the coast; weathered concrete, rusted antenna structures and a locked equipment room."},
+      {"id": "newsroom", "name": "The Ledger newsroom", "description": "A compact independent newsroom with old filing cabinets, recording equipment, paper archives and a view of the city."},
+      {"id": "grid_control", "name": "Aderin Grid Control", "description": "A municipal power operations room with physical switchgear, restrained monitoring screens and an industrial service corridor."},
+      {"id": "old_causeway", "name": "The Old Causeway", "description": "A disused coastal road and flood-control crossing connected to the Night of Silence."}
+    ]
+  },
+  "world_rules": [
+    "A functioning receiver can capture the unexplained transmission only at 02:17 local time.",
+    "The message describes a verifiable event scheduled to occur approximately 24 hours later; it is incomplete and may contain noise, gaps or location clues.",
+    "A warning does not explain its own cause. Characters must investigate before acting.",
+    "Changing an event does not create an easy reset. Interventions have practical consequences and may change what is transmitted next.",
+    "The signal cannot answer arbitrary questions, identify every future event or solve the characters' problems for them.",
+    "The source of the signal remains unresolved through the first season; revelations must be earned through evidence and character choices."
+  ],
+  "backstory": {
+    "event_name": "The Night of Silence",
+    "description": "Eighteen years before the pilot, Aderin Bay suffered a nineteen-minute citywide communications and power failure during a coastal storm. A public-warning trial was blamed for part of the confusion. The official inquiry closed quickly, and Relay Station 6 was decommissioned.",
+    "hidden_project": "LANTERN",
+    "public_record": "The LANTERN early-warning network was described as a failed municipal pilot and its records were archived.",
+    "dramatic_truth": "The public record is incomplete. Several people who worked on LANTERN disappeared from the project files, and the system's final test was never properly explained."
+  },
+  "themes": [
+    "The responsibility that comes with knowing what may happen",
+    "Public trust and the consequences of institutional secrecy",
+    "Memory, grief and the stories cities choose to forget",
+    "The difference between preventing harm and controlling other people",
+    "Friendship built through difficult, imperfect choices"
+  ],
+  "style_bible": {
+    "animation": "premium cinematic 3D animation with grounded human proportions and restrained stylisation",
+    "lighting": "motivated practical lighting, humid coastal night atmosphere, controlled highlights and natural skin tones",
+    "palette": ["deep navy", "weathered concrete grey", "warm tungsten amber", "muted teal", "restrained emergency red"],
+    "camera": "deliberate, readable cinematic framing; motivated movement; no random camera motion",
+    "environments": "physically coherent, recurring locations with stable geography, props, layout and weather continuity",
+    "character_rendering": "stable facial proportions, skin tone, hairstyle, age, body proportions and wardrobe across all shots",
+    "sound": "restrained environmental sound, distinct character voices, purposeful silence, original or properly licensed score",
+    "avoid": ["comedy beats", "memes", "cartoon slapstick", "random character redesigns", "unmotivated slow motion", "generic stock-looking city shots", "text baked into generated frames", "logos or watermarks", "unearned exposition", "fake technical readouts"]
+  },
+  "cast": [
+    {
+      "id": "amara",
+      "name": "Amara Dike",
+      "age": 27,
+      "role": "protagonist; radio repairer",
+      "personality": ["observant", "patient under pressure", "resourceful", "guarded about family history"],
+      "backstory": "Amara inherited Dike Radio Works after her father disappeared from public life following the Night of Silence. She has avoided the abandoned relay network because the official story never matched what her father told her.",
+      "season_one_arc": "Moves from treating the signal as a technical anomaly to accepting responsibility for what she does with the warnings; learns that her father's disappearance is tied to LANTERN.",
+      "appearance_lock": "A 27-year-old West African woman with deep brown skin, an oval face, alert dark-brown eyes, a small vertical scar through the outer edge of her left eyebrow, short natural coiled hair tapered at the sides, a lean practical build, a muted rust work jacket over a charcoal crew-neck shirt, dark utility trousers and worn black work boots. No changes to facial structure, scar, hair, skin tone or clothing palette between scenes unless the script explicitly records a costume change.",
+      "voice_profile": {
+        "voice_id": "en_US-ljspeech-medium",
+        "status": "provisional",
+        "casting_note": "Technical audition candidate only. Listen and approve before locking; the current verified model catalogue is US English and may not provide the intended regional voice."
+      },
+      "reference_asset": "character_references/amara_reference.png"
+    },
+    {
+      "id": "dami",
+      "name": "Dami Folarin",
+      "age": 30,
+      "role": "co-lead; investigative journalist",
+      "personality": ["sceptical", "persistent", "empathetic", "sometimes reckless when evidence is close"],
+      "backstory": "Dami works for the independent Ledger newsroom. His older sister was among the people affected by the Night of Silence, and he has spent years trying to obtain the missing inquiry records.",
+      "season_one_arc": "Moves from chasing a story to protecting the people caught inside it; discovers that a source he trusted helped bury part of the LANTERN record.",
+      "appearance_lock": "A 30-year-old West African man with medium-deep brown skin, a long oval face, close-cropped black hair, a neat short beard, thoughtful dark eyes, a slim build, a faded olive field jacket over a dark navy shirt, charcoal trousers and a compact audio recorder kept in his jacket pocket. Keep his face, beard line, hair, proportions and clothing stable across scenes.",
+      "voice_profile": {
+        "voice_id": "en_US-joe-medium",
+        "status": "provisional",
+        "casting_note": "Technical audition candidate only. Listen and approve before locking; the current verified model catalogue is US English and may not provide the intended regional voice."
+      },
+      "reference_asset": "character_references/dami_reference.png"
+    },
+    {
+      "id": "kato",
+      "name": "Kato Mensah",
+      "age": 36,
+      "role": "co-lead; municipal power-grid engineer",
+      "personality": ["methodical", "measured", "protective", "deeply uncomfortable with institutional secrets"],
+      "backstory": "Kato worked on a later upgrade to Aderin's emergency power network. He recognises the signal's technical signature and knows that Relay Station 6 was never fully disconnected.",
+      "season_one_arc": "Moves from professional self-protection to taking responsibility for the systems he helped maintain; reveals his connection to the LANTERN archive.",
+      "appearance_lock": "A 36-year-old West African man with dark brown skin, a broad nose, a square jaw, closely shaved hair with a faint receding hairline, a compact sturdy build, a small mole below his right cheekbone, a dark slate utility shirt with rolled sleeves, a discreet ID lanyard and dark work trousers. Keep his facial proportions, mole, hair, build and wardrobe consistent.",
+      "voice_profile": {
+        "voice_id": "en_US-mike-medium",
+        "status": "provisional",
+        "casting_note": "Technical audition candidate only. Listen and approve before locking; the current verified model catalogue is US English and may not provide the intended regional voice."
+      },
+      "reference_asset": "character_references/kato_reference.png"
+    }
+  ],
+  "voice_cast": {
+    "status": "provisional_not_locked",
+    "unique_voice_per_character_required": true,
+    "narrator": "none; the story is carried by character dialogue and scene sound",
+    "approval_required": true,
+    "notes": "The initial Piper assignments are audition candidates, not final casting. The series must not ship with duplicated fallback voices or unapproved voice models. A replacement model must have an acceptable commercial-use licence and a successful audition."
+  },
+  "episode_rules": [
+    "Every episode must resolve its immediate dramatic problem while advancing at least one season-long mystery.",
+    "Every major character must make consequential choices; no character exists only to explain the plot.",
+    "No scene may exist solely to pad runtime. Each scene must change information, danger, relationship or direction.",
+    "Do not use humour, jokes, memes or gag reactions as a default engagement device.",
+    "Do not repeat a previous episode's central problem with only names and locations changed.",
+    "Do not contradict the world rules, character histories, established physical details or already-revealed evidence.",
+    "Do not invent a new recurring character or permanent location without updating the series bible.",
+    "End episodes with a meaningful consequence or unresolved question, not an arbitrary cut before the promised payoff."
+  ],
+  "continuity_policy": {
+    "canonical_state_updates_only_after_approval": true,
+    "unapproved_drafts_do_not_change_future_episode_context": true,
+    "preserve_character_state": ["knowledge", "injuries", "relationships", "possessions", "wardrobe changes", "location", "unresolved obligations"],
+    "episode_recap_source": "approved episode continuity record only"
+  }
+}
