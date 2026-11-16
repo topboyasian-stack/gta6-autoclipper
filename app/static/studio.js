@@ -36,7 +36,6 @@
   function mediaUrl(projectId, kind) {
     const url = new URL("/api/studio/projects/" + encodeURIComponent(projectId) + "/media", window.location.origin);
     url.searchParams.set("kind", kind);
-    if (token) url.searchParams.set("access_token", token);
     return url.toString();
   }
 
