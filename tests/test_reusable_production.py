@@ -147,7 +147,7 @@ class ReusableProductionTests(unittest.TestCase):
 
     def test_text_only_storyboard_fallback_continues_when_contact_sheet_fails(self):
         from unittest.mock import Mock
-        from google.genai import Client
+        from types import ModuleType
 
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory) / "project"
@@ -194,11 +194,23 @@ class ReusableProductionTests(unittest.TestCase):
                 generate_content=Mock(return_value=SimpleNamespace(text=json.dumps(payload)))
             )
             mock_client = SimpleNamespace(models=mock_models)
+            google_module = ModuleType("google")
+            genai_module = ModuleType("google.genai")
+            genai_types_module = ModuleType("google.genai.types")
+            genai_module.Client = Mock(return_value=mock_client)
+            genai_module.types = genai_types_module
+            genai_types_module.GenerateContentConfig = lambda **kwargs: SimpleNamespace(**kwargs)
+            google_module.genai = genai_module
+            fake_google_modules = {
+                "google": google_module,
+                "google.genai": genai_module,
+                "google.genai.types": genai_types_module,
+            }
 
             with patch(
                 "app.reusable_production._extract_scene_contact_sheet",
                 side_effect=RuntimeError("FFmpeg pad filter failed"),
-            ), patch("google.genai.Client", return_value=mock_client):
+            ), patch.dict("sys.modules", fake_google_modules):
                 result = generate_episode_from_flow_scenes(
                     project_dir=project,
                     scene_files=scene_files,
