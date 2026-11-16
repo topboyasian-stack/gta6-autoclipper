@@ -189,9 +189,9 @@ def prepare_puffy_story_voice(
 ) -> tuple[Path, dict]:
     """Create a consistent, brighter Puffy storybook voice from the verified LJSpeech narration.
 
-    The original narration WAV is never modified. If FFmpeg includes librubberband, pitch
-    and formants are shifted together while preserving duration. A deterministic resampling
-    fallback supplies a similar lift on standard Colab FFmpeg builds without rubberband.
+    The original narration WAV is never modified. Pitch and formants are lifted together;
+    tempo is adjusted only as much as needed to fit the scene duration. A deterministic
+    resampling fallback supports standard Colab FFmpeg builds without librubberband.
     """
     import hashlib
     import subprocess
@@ -231,7 +231,7 @@ def prepare_puffy_story_voice(
         if not (15 <= target_duration <= 180):
             raise ValueError(f"Unexpected target duration for Puffy narration: {target_duration:.2f}s")
         tempo_scale = source_duration / target_duration
-        if not 0.78 <= tempo_scale <= 1.15:
+        if not 0.62 <= tempo_scale <= 1.15:
             raise ValueError(
                 f"The story narration is {source_duration:.1f}s for {target_duration:.1f}s of scenes. "
                 "The narration length needs adjusting; the studio will not distort the voice to force a fit."
