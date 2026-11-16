@@ -45,6 +45,22 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
                 ast.parse(source)
 
 
+    def test_video_previews_use_supported_api_and_cannot_fail_production(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        source = "\\n".join(
+            "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+            for cell in notebook["cells"]
+        )
+        self.assertNotIn("Video(filename=", source)
+        self.assertIn("def show_video_preview(path, width):", source)
+        self.assertIn("Video(str(preview_path), embed=True, width=width)", source)
+        self.assertIn("show_video_preview(row[\"path\"], 320)", source)
+        self.assertIn("show_video_preview(draft_video_path, 360)", source)
+        self.assertIn("show_video_preview(draft_video_path, 480)", source)
+        self.assertIn("except Exception as exc:", source)
+        self.assertIn("The rendered video is still saved at:", source)
+
     def test_engineering_setup_pins_pyav_for_faster_whisper_compatibility(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
         notebook = json.loads(path.read_text(encoding="utf-8"))
