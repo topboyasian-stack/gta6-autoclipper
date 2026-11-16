@@ -53,7 +53,7 @@ async def protect_private_studio_api(request: Request, call_next):
     # Quick Cloudflare tunnels are reachable by URL, so all API data and media
     # routes require the per-runtime token. Static HTML/CSS/JS contain no data.
     if STUDIO_ACCESS_TOKEN and request.url.path.startswith("/api/"):
-        supplied = request.headers.get("x-studio-token", "")
+        supplied = request.headers.get("x-studio-token", "") or request.query_params.get("access_token", "")
         import hmac
         if not hmac.compare_digest(supplied, STUDIO_ACCESS_TOKEN):
             return JSONResponse({"detail": "Your private Studio session has expired. Reopen the dashboard link from Colab."}, status_code=401)
