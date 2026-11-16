@@ -187,6 +187,9 @@ class ReusableProductionTests(unittest.TestCase):
                 ),
                 "scene_manifest": manifest,
             }
+            # Deliberately return rows in reverse order to verify that the fallback
+            # enforces the original clip order even if the model ignores the prompt.
+            payload["scene_manifest"] = list(reversed(manifest))
             mock_models = SimpleNamespace(
                 generate_content=Mock(return_value=SimpleNamespace(text=json.dumps(payload)))
             )
@@ -222,6 +225,8 @@ class ReusableProductionTests(unittest.TestCase):
             self.assertIn("Keep the exact supplied natural filename order", contents[0])
             manifest_text = (project / "scene_manifest.csv").read_text(encoding="utf-8")
             self.assertIn("auto_generated_needs_content_QC_no_visual_review", manifest_text)
+            self.assertIn("Visual content not machine-reviewed; retained in supplied order.", manifest_text)
+            self.assertLess(manifest_text.index("01.mp4"), manifest_text.index("02.mp4"))
             self.assertIn("FFmpeg pad filter failed", result["storyboard_visual_review_warning"])
 
     def _valid_flow_payload(self):
