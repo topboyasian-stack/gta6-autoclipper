@@ -1,6 +1,6 @@
 # Universal Colab Production Studio
 
-There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for gaming, AI scenes, Shorts, long-form videos, or compilations.
+There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for gaming highlights, AI scene assembly, engineering explainers, kids stories, Shorts, or long-form videos.
 
 **[Open the Universal Colab Production Studio directly in Google Colab](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb)**
 
@@ -15,7 +15,7 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | Gaming highlights | One completed, permitted gameplay video | Ranked candidate highlights for manual review |
 | AI scene assembly | Two or more rendered AI scene videos | One assembled video |
 | Long-form video | One or more video files | One horizontal 16:9 video |
-| Multi-clip compilation | Two or more permitted clips | One assembled video |
+| Kids story production (Puffy — no narration) | Two or more ordered Google Flow scene MP4s | Visual children's story; no narration or speech captions; Flow scene audio retained by default |
 | Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
 The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook creates a six-scene prompt pack, but you generate the video clips in Google Flow and export the MP4s for the notebook to assemble.
@@ -69,6 +69,21 @@ Do not use private, subscriber-only, or otherwise restricted sources without aut
 The notebook does not create Google Flow scenes and does not publish to YouTube automatically. You still export the new scene videos from Google Flow and place them in the episode's Drive incoming folder. Everything after scene intake is handled by the same studio sequence.
 
 Gaming highlight detection in the separate gaming mode remains a signal-based first pass using audio energy and FFmpeg scene-change signals.
+
+## Puffy kids story mode — replaces the compilation slot
+
+Choose **Kids story production — Puffy / visual story (no narration)** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
+
+1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. If Project ID is blank, the notebook creates a date-stamped project ID from the story title.
+2. Select **Use a folder already in Google Drive**. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<story-title>/`. You can change it after selecting the mode.
+3. Put the approved Google Flow MP4 scenes in that folder. Use numeric filenames such as `scene_001.mp4`, `scene_002.mp4`, and `scene_003.mp4`; the studio orders them naturally. Two or more scenes are required.
+4. Choose **YouTube Shorts — vertical 9:16** or **Standard YouTube — horizontal 16:9**. The standard format fits portrait Flow scenes on a landscape canvas without cropping the main picture.
+5. Keep **Mute original source/scene audio** unchecked to preserve Flow sound effects and ambience. Selecting Kids Story resets this setting to unmuted by default.
+6. Enter the actual rights basis, confirm it for these exact files, then run the same source-preparation, processing/preview, and export cells used by the other modes.
+
+**Narration is hard-disabled for this mode.** It does not install or load Piper, does not generate a voice track, does not run Faster-Whisper, and does not create SRT or burned-in speech captions. The engineering narrator, research, script generation, and engineering music pipeline remain exclusive to the engineering mode. The Kids Story export records `narration_included: false` and `speech_captions_included: false` in its manifest.
+
+The export ZIP contains the finished MP4, YouTube metadata, and project manifest. The metadata reminds you to set the YouTube audience to **Made for Kids** when the video is directed to children. Review the complete story and confirm all Flow scene/audio rights before publishing.
 
 ## Animated Engineering Explainer mode — fully reusable workflow
 
