@@ -12,6 +12,18 @@ from pathlib import Path
 from typing import Iterable
 
 
+def _story_word_targets(total_duration: float) -> tuple[int, int]:
+    """Return target/minimum spoken words for the supplied scene runtime.
+
+    The target guides the model; the lower bound allows a complete, coherent
+    story to proceed when the model comes back shorter than requested. Narration
+    is subsequently tempo-fitted to the actual scene duration.
+    """
+    target_words = max(50, min(145, int(float(total_duration) * 2.25)))
+    minimum_story_words = max(45, int(target_words * 0.70))
+    return target_words, minimum_story_words
+
+
 def generate_kids_story_script(
     project_dir: Path,
     scene_files: Iterable[Path],
@@ -59,9 +71,9 @@ def generate_kids_story_script(
         durations.append(duration)
     total_duration = sum(durations)
     # Aim for a complete spoken story across the scene runtime, not a brief intro
-    # followed by twenty seconds of silent visuals. Puffy narration is later tempo-fitted.
-    target_words = max(50, min(145, int(total_duration * 2.25)))
-    minimum_story_words = max(45, int(target_words * 0.86))
+    # followed by twenty seconds of silent visuals. Treat the word target as guidance,
+    # not a brittle pass/fail threshold; the voice is later tempo-fitted to the footage.
+    target_words, minimum_story_words = _story_word_targets(total_duration)
     scene_rows = [{"scene_file": p.name, "duration_seconds": round(d, 2)} for p, d in zip(scenes, durations)]
     fingerprint = _json_fingerprint({
         "pipeline_version": 1,
@@ -94,7 +106,7 @@ row per source clip, in numbered scene order, with START, MIDDLE and END samples
 
 Title: {story_title.strip()}
 Total footage duration: {total_duration:.1f} seconds.
-Narration target: approximately {target_words} spoken words; hard maximum {target_words + 25}.
+Narration target: approximately {target_words} spoken words; aim for at least {minimum_story_words}, never exceed {target_words + 25}. Prioritize a coherent complete story over padding.
 Source clips, in the exact order to be used:
 {json.dumps(scene_rows, ensure_ascii=False)}
 
