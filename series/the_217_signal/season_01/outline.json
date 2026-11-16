@@ -1,0 +1,80 @@
+{
+  "season": 1,
+  "season_title": "THE FIRST WARNING",
+  "episode_count": 8,
+  "season_promise": "The three leads learn what the 02:17 warning system can and cannot do, uncover the buried LANTERN project, and discover why the Night of Silence was never fully investigated.",
+  "episodes": [
+    {
+      "episode": 1,
+      "working_title": "DEAD AIR",
+      "logline": "While repairing a decommissioned receiver, Amara captures a distress call describing a transformer fire that has not happened yet. The call leads her to a location connected to her father's last known work.",
+      "dramatic_question": "Is the warning a hoax, a prediction or something more concrete?",
+      "episode_problem": "A transformer failure threatens a crowded night market and the people in nearby homes.",
+      "required_beats": ["Establish Amara's shop and practical radio expertise", "Restore the abandoned receiver without treating it as magic", "Hear the first 02:17 transmission", "Verify the next-day location and event", "Bring Dami into the investigation through evidence, not coincidence", "Show Kato recognising a technical signature he should not know", "Prevent the immediate harm at a cost", "Reveal a call sign associated with Amara's missing father"],
+      "ending_hook": "After the immediate danger is contained, the receiver prints a fragment of an old LANTERN routing code and a voice uses Amara's childhood nickname."
+    },
+    {
+      "episode": 2,
+      "working_title": "THE LAST STOP",
+      "logline": "A second warning points to a power failure at a coastal transit stop. Dami finds that the official incident archive has a missing page.",
+      "dramatic_question": "Who is editing the city's record of the warnings?",
+      "episode_problem": "A scheduled electrical isolation is missing from the public maintenance record.",
+      "required_beats": ["Continue directly from the call sign reveal", "Show the cost of the first intervention", "Trace a warning to a transit location", "Dami finds a deliberately removed archive page", "Kato identifies an obsolete relay path", "Save a specific person through verification rather than guesswork", "Leave a verifiable evidence trail"],
+      "ending_hook": "The missing page contains Kato's employee number."
+    },
+    {
+      "episode": 3,
+      "working_title": "THE QUIET GRID",
+      "logline": "Kato traces the signal through a decommissioned grid route and discovers that one supposedly dead relay is still drawing power.",
+      "dramatic_question": "Why is an abandoned emergency network still active?",
+      "episode_problem": "The team must reach a live relay without alerting the office that disabled it.",
+      "required_beats": ["Make Kato's personal stake explicit", "Use believable grid operations and physical access constraints", "Show Amara and Dami disagreeing about the next move", "Find evidence that Relay Station 6 is not isolated", "Establish a new physical location for the mystery"],
+      "ending_hook": "The receiver records a transmission from inside Relay Station 6 while all three leads are standing outside it."
+    },
+    {
+      "episode": 4,
+      "working_title": "BORROWED VOICES",
+      "logline": "A warning arrives in a voice recorded during the Night of Silence. The team must determine whether it is an archival recording, a live impersonation or a new transmission.",
+      "dramatic_question": "Can a voice be trusted when its recording history is impossible?",
+      "episode_problem": "A voice match appears to implicate someone who has been missing for eighteen years.",
+      "required_beats": ["Make voice evidence a clue rather than a supernatural answer", "Test recording age and signal path", "Expose a false lead", "Reveal the limits of the receiver", "Force Dami to disclose a family connection to the old incident"],
+      "ending_hook": "The recording contains a sentence that has not yet been spoken in the present."
+    },
+    {
+      "episode": 5,
+      "working_title": "THE ARCHIVE ROOM",
+      "logline": "The team enters a locked municipal archive and finds the original LANTERN trial logs, including a report that was signed after the project was supposedly shut down.",
+      "dramatic_question": "Who kept the system alive after the inquiry closed?",
+      "episode_problem": "A timed access window forces the team to choose which record to copy and which person to trust.",
+      "required_beats": ["Pay off the missing-page clue", "Reveal the original purpose of LANTERN as an emergency-warning trial", "Show a credible reason the project was shut down publicly", "Expose a conflict between public safety and institutional self-protection", "Do not reveal the complete source of the signal yet"],
+      "ending_hook": "One LANTERN log lists Amara's father as the last operator, eighteen years after his recorded disappearance."
+    },
+    {
+      "episode": 6,
+      "working_title": "A MAP WITH NO ROADS",
+      "logline": "A route hidden in the relay logs leads beneath the Old Causeway, where the team finds infrastructure that is absent from every current city map.",
+      "dramatic_question": "What was built beneath the coast, and why was it erased?",
+      "episode_problem": "A deteriorating access route gives the team a narrow window to inspect the hidden network.",
+      "required_beats": ["Use the physical evidence from the archive", "Show practical environmental danger without exaggerated action", "Make Amara confront the possibility that her father chose to disappear", "Reveal a second transmission path", "Make the next intervention carry a personal cost"],
+      "ending_hook": "The hidden receiver contains a message addressed to the three leads by name."
+    },
+    {
+      "episode": 7,
+      "working_title": "ONE MESSAGE TOO MANY",
+      "logline": "The team receives a warning that seems to offer a chance to prevent the Night of Silence from repeating, but the evidence points in conflicting directions.",
+      "dramatic_question": "What happens when the warning itself becomes the danger?",
+      "episode_problem": "Acting on an incomplete transmission could put the wrong people at risk.",
+      "required_beats": ["Bring all three character arcs into conflict", "Make the limits of the signal matter", "Require a decision based on imperfect evidence", "Create a consequence that cannot be undone", "Reveal that someone else has been listening"],
+      "ending_hook": "The transmitter receives a message from a source that appears to be inside Amara's own shop."
+    },
+    {
+      "episode": 8,
+      "working_title": "TOMORROW'S VOICE",
+      "logline": "As a citywide emergency unfolds, Amara, Dami and Kato follow the signal to its strongest source and discover a living connection to the Night of Silence.",
+      "dramatic_question": "Who is sending the warnings, and what are they trying to prevent?",
+      "episode_problem": "The team must act on one final warning without knowing whether the message is complete or manipulated.",
+      "required_beats": ["Deliver a complete payoff to the season's immediate emergency", "Resolve one major LANTERN question with evidence", "Complete a meaningful change in each lead", "Do not undo the cost of earlier choices", "Leave the source's full motive unresolved for the next season"],
+      "ending_hook": "The last clean transmission is in Amara's own voice, saying a sentence she has not yet spoken."
+    }
+  ]
+}

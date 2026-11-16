@@ -159,6 +159,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
             "Long-form video",
             "Kids story production",
             "Animated engineering explainer",
+            "Serialized fiction series",
         )
         for mode in modes:
             with self.subTest(mode=mode):
@@ -191,6 +192,46 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn('No supported video files were found in the selected project intake or either', preparation)
         docs = (ROOT / "docs" / "COLAB_PRODUCTION_STUDIO.md").read_text(encoding="utf-8")
         self.assertIn('historical folder spelling `incomming/`', docs)
+
+
+    def test_serialized_series_is_story_first_and_keeps_legacy_pipelines(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        full_source = "\n".join(
+            "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+            for cell in notebook["cells"]
+        )
+        self.assertIn('"Serialized fiction series"', full_source)
+        self.assertIn("Generate screenplay + 24 Flow prompts", full_source)
+        self.assertIn("generate_series_episode_package", full_source)
+        self.assertIn("approve_series_episode_script", full_source)
+        self.assertIn("series_script_approval.json", full_source)
+        self.assertIn("generate_series_voice_auditions", full_source)
+        self.assertIn("approve_series_voice_cast", full_source)
+        self.assertIn("approve_series_character_references", full_source)
+        self.assertIn("render_series_episode", full_source)
+        self.assertIn("mark_series_episode_canonical", full_source)
+        self.assertIn("flow_prompt_pack.md", full_source)
+        self.assertIn("Kids story production", full_source)
+        self.assertIn("Animated engineering explainer", full_source)
+
+        series_source = (ROOT / "app" / "series_studio.py").read_text(encoding="utf-8")
+        for required in (
+            "initialize_series_workspace",
+            "set_series_voice_candidates",
+            "generate_series_episode_package",
+            "synthesize_series_dialogue",
+            "approve_series_character_references",
+            "candidate_fingerprint",
+            "mark_series_episode_canonical",
+        ):
+            self.assertIn(required, series_source)
+
+        bible = json.loads(
+            (ROOT / "series" / "the_217_signal" / "series_bible.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(bible["voice_cast"]["status"], "provisional_not_locked")
+        self.assertEqual(len(bible["cast"]), 3)
 
 if __name__ == "__main__":
     unittest.main()

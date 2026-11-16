@@ -1,6 +1,6 @@
 # Universal Colab Production Studio
 
-There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for gaming highlights, AI scene assembly, engineering explainers, kids stories, Shorts, or long-form videos.
+There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for the new serialized fiction series, gaming highlights, AI scene assembly, engineering explainers, legacy Puffy stories, Shorts or long-form videos.
 
 **[Open the Universal Colab Production Studio directly in Google Colab](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb)**
 
@@ -15,7 +15,8 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | Gaming highlights | One completed, permitted gameplay video | Ranked candidate highlights for manual review |
 | AI scene assembly | Two or more rendered AI scene videos | One assembled video |
 | Long-form video | One or more video files | One horizontal 16:9 video |
-| Kids story production (Puffy — narrated) | Two or more ordered Google Flow scene MP4s | Original scene-grounded children's story with shared licensed voice narration; scene audio mixed quietly underneath by default |
+| Serialized fiction series (THE 2:17 SIGNAL) | 24 ordered silent Google Flow clips plus locked series references and voice cast | Story-first 3–4 minute landscape episode with individual character dialogue, timed captions, licensed score and canonical continuity tracking |
+| Kids story production (Puffy — legacy test) | Two or more ordered Google Flow scene MP4s | Original scene-grounded children's story using the preserved Puffy Storybook profile |
 | Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
 The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook creates a six-scene prompt pack, but you generate the video clips in Google Flow and export the MP4s for the notebook to assemble.
@@ -82,7 +83,7 @@ Gaming highlight detection in the separate gaming mode remains a signal-based fi
 
 ## Puffy kids story mode — replaces the compilation slot
 
-Choose **Kids story production — Puffy / narrated story** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
+Choose **Kids story production — Puffy / legacy test** only to resume the old workflow. It remains inside the same Universal Colab Production Studio and is not the new main series.
 
 1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. The Project ID and its separate incoming folder are created automatically.
 2. Leave the auto-generated Project ID in place for this new story. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`. This is a separate intake folder, not the Engineering Explainer project.
@@ -91,7 +92,7 @@ Choose **Kids story production — Puffy / narrated story** from the existing Pr
 5. Keep **Mute original source/scene audio** unchecked to preserve Flow sound effects and ambience. Selecting Kids Story resets this setting to unmuted by default.
 6. Enter the actual rights basis, confirm it for these exact files, then run the same source-preparation, processing/preview, and export cells used by the other modes.
 
-The narrated Kids Story path inspects the supplied scene frames and writes one connected, age-appropriate story. It uses a dedicated **Puffy Storybook** narrator profile based on the licence-checked `en_US-ljspeech-medium` public-domain model, with a gentle pitch/formant lift and audio polish. The resulting synthetic narration is child-friendly in style; it is not a recording of an actual child. The profile and audio are saved separately from the Engineering narrator setting, so Engineering's Joe voice is not changed. Original Flow audio is retained underneath at a lower level unless muted. Scene joins are re-encoded to reset timestamps at cuts, and each intermediate video is checked against the source duration. Speech captions are not included in this mode. The engineering explainer continues to use its existing separate research, technical script, narration, caption-QA, licensed-music, and evidence-pack workflow.
+The legacy narrated Puffy Kids Story path inspects the supplied scene frames and writes one connected, age-appropriate story. It uses a dedicated **Puffy Storybook** narrator profile based on the licence-checked `en_US-ljspeech-medium` public-domain model, with a gentle pitch/formant lift and audio polish. The resulting synthetic narration is child-friendly in style; it is not a recording of an actual child. The profile and audio are saved separately from the Engineering narrator setting, so Engineering's Joe voice is not changed. Original Flow audio is retained underneath at a lower level unless muted. Scene joins are re-encoded to reset timestamps at cuts, and each intermediate video is checked against the source duration. Speech captions are not included in this mode. The engineering explainer continues to use its existing separate research, technical script, narration, caption-QA, licensed-music, and evidence-pack workflow.
 
 The export ZIP contains the finished MP4, YouTube metadata, and project manifest. The metadata reminds you to set the YouTube audience to **Made for Kids** when the video is directed to children. Review the complete story and confirm all Flow scene/audio rights before publishing.
 
@@ -155,3 +156,36 @@ Official references:
 ### What it does not automate
 
 It does not generate new Flow videos, log in to Google Flow on your behalf, upload to YouTube, guarantee engineering accuracy or guarantee YouTube monetisation. If fewer than two source pages can be verified, or the caption quality check fails, the studio stops rather than inventing facts or exporting unreliable captions.
+
+
+## THE 2:17 SIGNAL — serialized animated series
+
+The new default production is a story-first continuing mystery, not a scene-first children's story. Its source of truth is the separate series bible in \`series/the_217_signal/\`. The complete setup and limitations are documented in [THE 2:17 SIGNAL production guide](THE_217_SIGNAL_PRODUCTION.md).
+
+### First-season premise
+
+Amara Dike, a radio repairer in the fictional coastal city of Aderin Bay, restores a decommissioned emergency transmitter. At exactly 02:17, it begins receiving incomplete distress calls describing events approximately 24 hours before they happen. With journalist Dami Folarin and grid engineer Kato Mensah, she follows the warnings into the buried LANTERN project and the unresolved Night of Silence.
+
+The first season is outlined as eight connected episodes. Episode 1 is the only episode that can be prepared before any earlier episode has entered the approved continuity ledger. Later episode scripts read canonical continuity only; abandoned drafts do not change the story bible or future episode context.
+
+### Story-first production sequence
+
+1. Select **Original serialized series — THE 2:17 SIGNAL**. The output is fixed to landscape 1920×1080, with an intended 3–4 minute runtime.
+2. Generate the episode screenplay and its 24-scene silent Flow prompt pack before creating footage. Review the logline, immediate dramatic resolution, continuity in/out and ending hook.
+3. Generate the three character turnaround sheets with the separate prompts in \`series/the_217_signal/character_reference_prompts.md\`. Save the files to the persistent Drive folder \`series/the_217_signal/character_references/\` as \`amara_reference.png\`, \`dami_reference.png\` and \`kato_reference.png\`.
+4. Review the character identities and lock the approved reference images. Their fingerprints are stored; replacing a reference image requires re-approval.
+5. Select a proposed voice for each character, create the voice auditions and listen to them. The current Piper catalogue provides only three licence-checked US-English candidates. The voices are provisional and may not fit the intended regional accents. Duplicate fallback models are rejected. Do not approve a voice just because it can generate audio.
+6. Lock the voice cast only after every character has a distinct model and the human approval boxes are checked.
+7. In the same Google Flow project, add the approved character reference images for each scene and generate the 24 silent clips in prompt order. Dialogue and captions are created separately in the production studio. Export as \`scene_001.mp4\` through \`scene_024.mp4\` into the selected episode's incoming folder.
+8. Run the source/preparation and processing cells. The renderer requires locked character images, locked distinct voices and exactly 24 correctly numbered scenes. It creates per-character dialogue, an SRT file, the landscape episode master, music attribution records and a technical render report.
+9. Watch the entire episode and check the generated character images against the references. Visual identity cannot yet be automatically certified. Review every line, pronunciation, dialogue-to-picture fit, caption, cut, soundtrack and story beat.
+10. Type \`EXPORT\` only after review passes. The export action marks the episode canonical and updates the season ledger. A later episode cannot be drafted until every earlier episode is canonical.
+
+### Known limitations — do not mistake a gate for a guarantee
+
+- Google Flow generation remains manual. The notebook does not log in to Flow, create clips or consume Flow credits.
+- Reference images and prompt instructions encourage continuity but cannot force a video model to reproduce a face perfectly. Human review is compulsory.
+- This initial render creates voice dialogue independently of the Flow picture. It does not provide true frame-level lip-sync. Use over-shoulder compositions, cutaways, reaction shots and off-screen dialogue until a tested lip-sync process is available.
+- The episode renderer checks clip count/order, audio file timing, output codecs, dimensions and duration. It does not automatically judge acting quality, facial continuity, dramatic clarity or audience appeal.
+- Character designs, voice assets, script, Flow clips and music each need suitable rights for the intended commercial use. Keep model cards and music licence records with each export.
+- The series is in pre-production until reference sheets and voice casting are approved and an end-to-end pilot passes human review. There is no monetization guarantee.
