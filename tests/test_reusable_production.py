@@ -28,6 +28,33 @@ from app.reusable_production import (
 
 class ReusableProductionTests(unittest.TestCase):
 
+    def test_puffy_storybook_voice_profile_is_separate_and_duration_stable(self):
+        from app.kids_story_studio import prepare_puffy_story_voice
+
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "narration.wav"
+            generated = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-f", "lavfi",
+                    "-i", "sine=frequency=440:duration=2.0",
+                    "-ar", "22050", "-ac", "1", "-c:a", "pcm_s16le", str(source),
+                ],
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr[-1000:])
+            original_bytes = source.read_bytes()
+
+            styled, metadata = prepare_puffy_story_voice(source, pitch_ratio=1.12)
+
+            self.assertTrue(styled.is_file())
+            self.assertNotEqual(styled, source)
+            self.assertEqual(source.read_bytes(), original_bytes)
+            self.assertEqual(metadata["profile_name"], "Puffy Storybook")
+            self.assertEqual(metadata["base_voice_model"], "en_US-ljspeech-medium")
+            self.assertGreater(metadata["pitch_lift_semitones_approx"], 1.5)
+            self.assertLess(abs(metadata["styled_duration_seconds"] - 2.0), 0.8)
+            self.assertTrue((Path(directory) / "puffy_storybook_voice.json").is_file())
+
     def test_official_minnesota_state_stormwater_manual_is_trusted(self):
         self.assertTrue(_trusted_technical_url(
             "https://stormwater.pca.state.mn.us/types_of_permeable_pavement"
