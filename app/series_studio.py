@@ -21,7 +21,7 @@ SERIES_ID = "the_217_signal"
 SERIES_TITLE = "THE 2:17 SIGNAL"
 DEFAULT_SCENE_COUNT = 24
 DEFAULT_SCENE_SECONDS = 8.0
-DEFAULT_WORD_RANGE = (340, 520)
+DEFAULT_WORD_RANGE = (300, 400)
 SAMPLE_LINE = (
     "The receiver is active. I heard the warning at two seventeen. "
     "We verify the location before anyone acts."
@@ -195,16 +195,16 @@ def _validate_episode_package(package: dict, bible: dict, expected_episode: int)
             if not str(scene.get(key, "")).strip():
                 raise ValueError(f"Scene {index} is missing {key}.")
         lines = scene.get("dialogue_lines")
-        if not isinstance(lines, list) or not 1 <= len(lines) <= 3:
-            raise ValueError(f"Scene {index} must contain one to three dialogue lines.")
+        if not isinstance(lines, list) or not 1 <= len(lines) <= 2:
+            raise ValueError(f"Scene {index} must contain one or two dialogue lines.")
         for line in lines:
             speaker = str(line.get("speaker_id", ""))
             text = str(line.get("text", "")).strip()
             count = len(_words(text))
             if speaker not in cast_ids or speaker not in character_ids:
                 raise ValueError(f"Scene {index} dialogue uses a speaker not present in that scene.")
-            if not 3 <= count <= 24:
-                raise ValueError(f"Scene {index} has a dialogue line outside the 3–24 word limit.")
+            if not 3 <= count <= 18:
+                raise ValueError(f"Scene {index} has a dialogue line outside the 3–18 word limit.")
             total_words += count
             all_dialogue.append((speaker, text))
     if not 160 <= runtime <= 220:
@@ -343,8 +343,8 @@ OUTPUT REQUIREMENTS:
   episode_summary, continuity_in, continuity_out, ending_hook, scenes.
 - Create exactly {DEFAULT_SCENE_COUNT} scenes in order. Each scene is {DEFAULT_SCENE_SECONDS:.0f}
   seconds and the full picture runtime must be 160–220 seconds.
-- The spoken dialogue must total {DEFAULT_WORD_RANGE[0]}–{DEFAULT_WORD_RANGE[1]} words.
-- Every scene must have 1–3 dialogue_lines. Each line must contain 3–24 words.
+- The spoken dialogue must total {DEFAULT_WORD_RANGE[0]}–{DEFAULT_WORD_RANGE[1]} words; keep each line short enough to be delivered naturally inside an eight-second shot.
+- Every scene must have 1–3 dialogue_lines. Each line must contain 3–18 words; prefer 10–15 words so pauses and performance fit the shot.
 - Each dialogue line must use a speaker_id from the approved cast and that character must appear
   in the same scene's characters list. Never invent a voice or give one character another's lines.
 - Every scene object must have: order, duration_seconds, scene_title, location_id, characters,
