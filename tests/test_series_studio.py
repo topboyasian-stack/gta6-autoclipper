@@ -12,6 +12,7 @@ from app.series_studio import (
     mark_series_episode_canonical,
     render_series_flow_prompt_pack,
     validate_series_bible,
+    _scene_cache_fingerprint,
 )
 
 
@@ -88,6 +89,73 @@ class SerializedSeriesStudioTests(unittest.TestCase):
         package["scenes"][0]["duration_seconds"] = 15
         with self.assertRaisesRegex(ValueError, "between 6 and 9"):
             _validate_episode_package(package, self.bible, 1)
+
+    def test_episode_allows_up_to_six_deliberate_silent_scenes(self):
+        package = make_episode_package(self.bible)
+        for scene in package["scenes"][:6]:
+            scene["dialogue_lines"] = []
+        for scene in package["scenes"][6:12]:
+            speaker = scene["characters"][0]
+            scene["dialogue_lines"].append({
+                "speaker_id": speaker,
+                "text": "The record should identify the operator before we decide what to do next."
+            })
+        validated = _validate_episode_package(package, self.bible, 1)
+        self.assertEqual(validated["dialogue_word_count"], 312)
+
+    def test_episode_rejects_too_many_silent_scenes_and_prompt_line_mismatch(self):
+        package = make_episode_package(self.bible)
+        for scene in package["scenes"][:7]:
+            scene["dialogue_lines"] = []
+        for scene in package["scenes"][7:14]:
+            speaker = scene["characters"][0]
+            scene["dialogue_lines"].append({
+                "speaker_id": speaker,
+                "text": "The record should identify the operator before we decide what to do next."
+            })
+        with self.assertRaisesRegex(ValueError, "At least 18"):
+            _validate_episode_package(package, self.bible, 1)
+
+        package = make_episode_package(self.bible)
+        package["scenes"][0]["dialogue_lines"] *= 3
+        with self.assertRaisesRegex(ValueError, "zero, one or two"):
+            _validate_episode_package(package, self.bible, 1)
+
+    def test_scene_cache_fingerprint_tracks_source_content_and_render_settings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "scene_001.mp4"
+            source.write_bytes(b"first clip bytes")
+            original = _scene_cache_fingerprint(source, False, (1920, 1080))
+            source.write_bytes(b"other clip bytes")
+            changed_source = _scene_cache_fingerprint(source, False, (1920, 1080))
+            changed_audio = _scene_cache_fingerprint(source, True, (1920, 1080))
+            changed_size = _scene_cache_fingerprint(source, False, (1080, 1920))
+        self.assertNotEqual(original, changed_source)
+        self.assertNotEqual(changed_source, changed_audio)
+        self.assertNotEqual(changed_source, changed_size)
+
+    def test_canon_gate_rechecks_locked_voice_cast_and_script_approval(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            series_dir = initialize_series_workspace(root)
+            project_dir = root / "projects" / "pilot"
+            project_dir.mkdir(parents=True)
+            package = make_episode_package(self.bible)
+            package["series_id"] = self.bible["series_id"]
+            package["season_number"] = 1
+            package["request_fingerprint"] = "approved-test-fingerprint"
+            (project_dir / "series_episode_package.json").write_text(json.dumps(package), encoding="utf-8")
+            (project_dir / "original_script.md").write_text("# Pilot script\n\nAmara: We must verify the warning.", encoding="utf-8")
+            (project_dir / "flow_prompt_pack.md").write_text("# Pilot prompts\n\nScene 1", encoding="utf-8")
+            approve_series_episode_script(project_dir, True)
+            work_dir = project_dir / "work"
+            work_dir.mkdir()
+            (work_dir / "series_quality_report.json").write_text(
+                json.dumps({"status": "rendered_pending_human_review"}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(PermissionError, "locked, auditioned voice cast"):
+                mark_series_episode_canonical(series_dir, project_dir, True)
 
     def test_flow_prompt_pack_contains_reference_locks_and_silence_rules(self):
         package = _validate_episode_package(make_episode_package(self.bible), self.bible, 1)

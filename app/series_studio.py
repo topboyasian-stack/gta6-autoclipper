@@ -65,6 +65,27 @@ def _natural_key(path: Path) -> list[Any]:
             for part in re.split(r"(\d+)", Path(path).name)]
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _scene_cache_fingerprint(
+    source: Path,
+    keep_scene_audio: bool,
+    output_size: tuple[int, int],
+) -> str:
+    return _fingerprint({
+        "source_sha256": _file_sha256(source),
+        "keep_scene_audio": bool(keep_scene_audio),
+        "output_size": [int(output_size[0]), int(output_size[1])],
+        "normalizer_version": 2,
+    })
+
+
 def initialize_series_workspace(workspace: Path) -> Path:
     """Install default series assets into Drive without overwriting user-approved files."""
     workspace = Path(workspace)
@@ -178,6 +199,7 @@ def _validate_episode_package(package: dict, bible: dict, expected_episode: int)
         raise ValueError(f"The pilot package must contain exactly {DEFAULT_SCENE_COUNT} ordered scenes.")
     runtime = 0.0
     total_words = 0
+    dialogue_scene_count = 0
     all_dialogue = []
     for index, scene in enumerate(scenes, 1):
         if int(scene.get("order", 0)) != index:
@@ -195,8 +217,10 @@ def _validate_episode_package(package: dict, bible: dict, expected_episode: int)
             if not str(scene.get(key, "")).strip():
                 raise ValueError(f"Scene {index} is missing {key}.")
         lines = scene.get("dialogue_lines")
-        if not isinstance(lines, list) or not 1 <= len(lines) <= 2:
-            raise ValueError(f"Scene {index} must contain one or two dialogue lines.")
+        if not isinstance(lines, list) or len(lines) > 2:
+            raise ValueError(f"Scene {index} must contain zero, one or two dialogue lines.")
+        if lines:
+            dialogue_scene_count += 1
         for line in lines:
             speaker = str(line.get("speaker_id", ""))
             text = str(line.get("text", "")).strip()
@@ -209,6 +233,10 @@ def _validate_episode_package(package: dict, bible: dict, expected_episode: int)
             all_dialogue.append((speaker, text))
     if not 160 <= runtime <= 220:
         raise ValueError(f"Episode picture runtime must be 160–220 seconds; generated runtime is {runtime:.1f}s.")
+    if not 18 <= dialogue_scene_count <= DEFAULT_SCENE_COUNT:
+        raise ValueError(
+            "At least 18 of the 24 scenes must carry dialogue; up to six quiet visual beats are allowed."
+        )
     low, high = DEFAULT_WORD_RANGE
     if not low <= total_words <= high:
         raise ValueError(f"Episode dialogue must contain {low}–{high} spoken words; received {total_words}.")
@@ -344,7 +372,7 @@ OUTPUT REQUIREMENTS:
 - Create exactly {DEFAULT_SCENE_COUNT} scenes in order. Each scene is {DEFAULT_SCENE_SECONDS:.0f}
   seconds and the full picture runtime must be 160–220 seconds.
 - The spoken dialogue must total {DEFAULT_WORD_RANGE[0]}–{DEFAULT_WORD_RANGE[1]} words; keep each line short enough to be delivered naturally inside an eight-second shot.
-- Every scene must have 1–3 dialogue_lines. Each line must contain 3–18 words; prefer 10–15 words so pauses and performance fit the shot.
+- Every scene must have zero, one or two dialogue_lines. At least 18 of the 24 scenes must contain dialogue; up to six scenes may use deliberate silence, environmental sound and visual storytelling. Each line must contain 3–18 words; prefer 10–15 words so pauses and performance fit the shot.
 - Each dialogue line must use a speaker_id from the approved cast and that character must appear
   in the same scene's characters list. Never invent a voice or give one character another's lines.
 - Every scene object must have: order, duration_seconds, scene_title, location_id, characters,
@@ -852,7 +880,14 @@ def render_series_episode(
         duration = _probe_duration(source)
         durations.append(duration)
         target = normalized_dir / f"{index:03d}_normalized.mp4"
-        if target.exists() and abs(_probe_duration(target) - duration) < 0.1:
+        cache_path = target.with_suffix(".cache.json")
+        cache_fingerprint = _scene_cache_fingerprint(source, keep_scene_audio, (width, height))
+        cached = _read_json(cache_path, {})
+        if (
+            target.exists()
+            and cached.get("fingerprint") == cache_fingerprint
+            and abs(_probe_duration(target) - duration) < 0.1
+        ):
             normalized.append(target)
             continue
         temporary = target.with_name(target.stem + ".partial.mp4")
@@ -885,6 +920,14 @@ def render_series_episode(
             temporary.unlink(missing_ok=True)
             raise RuntimeError(f"Scene normalization failed for {source.name}: {(result.stderr or '')[-1800:]}")
         temporary.replace(target)
+        _write_json(cache_path, {
+            "fingerprint": cache_fingerprint,
+            "source_file": source.name,
+            "source_sha256": _file_sha256(source),
+            "keep_scene_audio": bool(keep_scene_audio),
+            "output_size": [width, height],
+            "normalizer_version": 2,
+        })
         normalized.append(target)
 
     concat_file = work_dir / "concat_list.txt"
@@ -1021,37 +1064,114 @@ def mark_series_episode_canonical(
     project_dir: Path,
     human_review_passed: bool,
 ) -> dict:
-    """Update season continuity only after explicit human approval of the final episode."""
+    """Update season continuity only after every approval and render artifact is re-verified."""
     if not human_review_passed:
         raise PermissionError("A failed or unreviewed episode cannot become canonical.")
-    package = _read_json(Path(project_dir) / "series_episode_package.json")
-    quality = _read_json(Path(project_dir) / "work" / "series_quality_report.json")
+
+    series_dir = Path(series_dir)
+    project_dir = Path(project_dir)
+    package = _read_json(project_dir / "series_episode_package.json")
+    quality_path = project_dir / "work" / "series_quality_report.json"
+    quality = _read_json(quality_path)
     if not isinstance(package, dict) or not isinstance(quality, dict):
         raise FileNotFoundError("The episode package and quality report are required before canon approval.")
+    bible = load_series_bible(series_dir)
+    if package.get("series_id") != bible["series_id"]:
+        raise ValueError("The episode package belongs to a different series bible.")
     if quality.get("status") != "rendered_pending_human_review":
         raise ValueError("The rendered episode is not awaiting its required final review.")
-    if not Path(quality["video"]).is_file():
+
+    # Recheck every upstream approval at the moment the episode enters canon.
+    script_approval = _validate_script_approval(project_dir, package)
+    voice_cast = _read_json(series_dir / "voice_cast.json", {})
+    reference_lock = _read_json(series_dir / "character_references_approval.json", {})
+    if not isinstance(voice_cast, dict) or voice_cast.get("status") != "locked":
+        raise PermissionError("A locked, auditioned voice cast is required before an episode can enter canon.")
+    if not isinstance(reference_lock, dict) or reference_lock.get("status") != "locked":
+        raise PermissionError("Approved character reference images are required before an episode can enter canon.")
+
+    candidate_fingerprint = _fingerprint({
+        item["id"]: item["voice_profile"]["voice_id"] for item in bible["cast"]
+    })
+    if voice_cast.get("candidate_fingerprint") != candidate_fingerprint:
+        raise PermissionError("The approved voice assignments changed after casting. Re-audition and lock them again.")
+
+    approved_assets = reference_lock.get("assets", {})
+    for character in bible["cast"]:
+        character_id = character["id"]
+        asset_path = series_dir / character["reference_asset"]
+        expected_hash = approved_assets.get(character_id, {}).get("sha256")
+        if not asset_path.is_file() or not expected_hash or _file_sha256(asset_path) != expected_hash:
+            raise PermissionError(f"The approved reference image for {character_id} is missing or has changed.")
+
+    expected_models = {
+        character_id: str(cast_item.get("actual_voice_id", ""))
+        for character_id, cast_item in voice_cast.get("characters", {}).items()
+    }
+    if set(expected_models) != {item["id"] for item in bible["cast"]} or len(set(expected_models.values())) != len(expected_models):
+        raise PermissionError("The locked cast must contain one distinct voice model for every recurring character.")
+    if quality.get("speaker_models") != expected_models:
+        raise PermissionError("The rendered dialogue does not match the currently locked voice cast.")
+    if quality.get("character_reference_approval_status") != "locked":
+        raise PermissionError("The render report does not contain an approved character-reference lock.")
+    if quality.get("character_reference_approval") != approved_assets:
+        raise PermissionError("The rendered episode used a different character-reference approval.")
+    rendered_script = quality.get("script_approval", {})
+    if any(rendered_script.get(key) != script_approval.get(key) for key in (
+        "package_sha256", "script_sha256", "flow_prompt_pack_sha256"
+    )):
+        raise PermissionError("The render was created from a different screenplay approval.")
+
+    required_artifacts = (
+        project_dir / "audio" / "series_dialogue.wav",
+        project_dir / "audio" / "series_dialogue_manifest.json",
+        project_dir / "captions" / "episode.srt",
+    )
+    if any(not item.is_file() or item.stat().st_size < 100 for item in required_artifacts):
+        raise FileNotFoundError("Dialogue audio, its timing manifest and reviewed captions are required before canon approval.")
+    video_path = Path(str(quality.get("video", "")))
+    if not video_path.is_file():
         raise FileNotFoundError("The rendered episode file is missing.")
+    if quality.get("resolution") != "1920x1080" or int(quality.get("scene_count", 0)) != DEFAULT_SCENE_COUNT:
+        raise ValueError("The rendered master does not meet the approved landscape scene-count specification.")
+
     season = int(package["season_number"])
     episode = int(package["episode_number"])
-    ledger_path = Path(series_dir) / "continuity" / f"season_{season:02d}.json"
+    outline = _load_season_outline(series_dir, season)
+    if not any(int(item.get("episode", 0)) == episode for item in outline.get("episodes", [])):
+        raise ValueError("The episode number is not present in the approved season outline.")
+    ledger_path = series_dir / "continuity" / f"season_{season:02d}.json"
     ledger = _load_canonical_continuity(series_dir, season)
-    existing = [item for item in ledger["canonical_episodes"] if int(item.get("episode", 0)) == episode]
+    completed_numbers = {int(item.get("episode", 0)) for item in ledger["canonical_episodes"]}
+    missing_prior = [number for number in range(1, episode) if number not in completed_numbers]
+    if missing_prior:
+        raise PermissionError(
+            "Episodes must enter canon in order. Approve all previous episodes first: "
+            + ", ".join(map(str, missing_prior))
+        )
+
     record = {
         "episode": episode,
         "episode_title": package["episode_title"],
         "summary": package["episode_summary"],
         "continuity_out": package["continuity_out"],
         "ending_hook": package["ending_hook"],
-        "quality_report": str(Path(project_dir) / "work" / "series_quality_report.json"),
+        "quality_report": str(quality_path),
         "approved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "script_approval_sha256": script_approval["package_sha256"],
+        "voice_cast_fingerprint": candidate_fingerprint,
+        "character_reference_fingerprints": {
+            key: value["sha256"] for key, value in approved_assets.items()
+        },
     }
-    ledger["canonical_episodes"] = [item for item in ledger["canonical_episodes"] if int(item.get("episode", 0)) != episode]
+    ledger["canonical_episodes"] = [
+        item for item in ledger["canonical_episodes"] if int(item.get("episode", 0)) != episode
+    ]
     ledger["canonical_episodes"].append(record)
     ledger["canonical_episodes"].sort(key=lambda item: int(item["episode"]))
     ledger["last_updated"] = record["approved_at"]
     _write_json(ledger_path, ledger)
     quality["status"] = "human_review_passed_canonical"
     quality["human_review_passed_at"] = record["approved_at"]
-    _write_json(Path(project_dir) / "work" / "series_quality_report.json", quality)
+    _write_json(quality_path, quality)
     return record
