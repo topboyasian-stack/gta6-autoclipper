@@ -14,7 +14,7 @@ from typing import Optional
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,8 +37,27 @@ ALLOWED = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 KICK_PAGE_HOSTS = {"kick.com", "www.kick.com"}
 KICK_MEDIA_HOST = "clips.kick.com"
 
-app = FastAPI(title="GTA 6 AutoClipper", version="0.3.0")
+app = FastAPI(title="Creator Studio", version="0.4.0")
 app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
+
+# The Colab dashboard points this at the user's existing Google Drive workspace.
+# Local AutoClipper use keeps a separate default workspace under DATA.
+STUDIO_WORKSPACE = Path(
+    os.getenv("GTA6_STUDIO_WORKSPACE", str(DATA / "GTA6_AutoClipper"))
+).expanduser()
+STUDIO_ACCESS_TOKEN = os.getenv("GTA6_STUDIO_ACCESS_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def protect_private_studio_api(request: Request, call_next):
+    # Quick Cloudflare tunnels are reachable by URL, so all API data and media
+    # routes require the per-runtime token. Static HTML/CSS/JS contain no data.
+    if STUDIO_ACCESS_TOKEN and request.url.path.startswith("/api/"):
+        supplied = request.headers.get("x-studio-token", "")
+        import hmac
+        if not hmac.compare_digest(supplied, STUDIO_ACCESS_TOKEN):
+            return JSONResponse({"detail": "Your private Studio session has expired. Reopen the dashboard link from Colab."}, status_code=401)
+    return await call_next(request)
 
 
 def db():
@@ -632,3 +651,73 @@ def stats():
     return {"sources": sources, "pending": counts.get("pending", 0),
             "approved": counts.get("approved", 0), "rejected": counts.get("rejected", 0),
             "published": counts.get("published", 0)}
+
+
+
+# ---------------------------------------------------------------------------
+# Personal Creator Studio dashboard — reads the same Google Drive projects
+# used by the maintained Universal Colab Production Studio.
+# ---------------------------------------------------------------------------
+from app.studio_dashboard import (
+    get_project_file as studio_get_project_file,
+    get_project_script as studio_get_project_script,
+    list_projects as studio_list_projects,
+    workspace_summary as studio_workspace_summary,
+)
+
+
+@app.get("/studio", response_class=HTMLResponse)
+def creator_studio_home():
+    dashboard = ROOT / "app" / "static" / "studio.html"
+    if not dashboard.is_file():
+        raise HTTPException(503, "Creator Studio dashboard assets are missing.")
+    return dashboard.read_text(encoding="utf-8")
+
+
+@app.get("/api/studio/health")
+def creator_studio_health():
+    return {
+        "ok": True,
+        "workspace_ready": STUDIO_WORKSPACE.is_dir(),
+        "workspace_label": "Google Drive production workspace",
+        "runtime": "Colab" if "/content/drive/" in str(STUDIO_WORKSPACE) else "Local",
+    }
+
+
+@app.get("/api/studio/summary")
+def creator_studio_summary():
+    return studio_workspace_summary(STUDIO_WORKSPACE)
+
+
+@app.get("/api/studio/projects")
+def creator_studio_projects():
+    return studio_list_projects(STUDIO_WORKSPACE)
+
+
+@app.get("/api/studio/projects/{project_id}/script")
+def creator_studio_script(project_id: str):
+    try:
+        path = studio_get_project_script(STUDIO_WORKSPACE, project_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return FileResponse(path, media_type="text/markdown; charset=utf-8", filename="story_script.md")
+
+
+@app.get("/api/studio/projects/{project_id}/media")
+def creator_studio_media(project_id: str, kind: str = "draft"):
+    try:
+        path = studio_get_project_file(STUDIO_WORKSPACE, project_id, kind)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    is_video = path.suffix.lower() == ".mp4"
+    return FileResponse(
+        path,
+        media_type="video/mp4" if is_video else "application/zip",
+        filename=path.name,
+        content_disposition_type="inline" if is_video else "attachment",
+    )
