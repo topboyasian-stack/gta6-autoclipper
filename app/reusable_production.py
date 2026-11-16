@@ -1206,6 +1206,14 @@ Rules:
         raise ValueError("Generated scene order contains a non-integer value.") from exc
     if sorted(order_values) != list(range(1, len(scene_files) + 1)):
         raise ValueError("Generated scene order must contain each number from 1 through N exactly once.")
+    if contact_sheet is None:
+        # Enforce source order and explicit non-observation in code, not merely in the prompt.
+        source_order = {path.name: index for index, path in enumerate(scene_files, 1)}
+        for row in generated_rows:
+            row["order"] = source_order[row["scene_file"]]
+            row["visual_description"] = (
+                "Visual content not machine-reviewed; retained in supplied order."
+            )
     generated_rows.sort(key=lambda row: int(row["order"]))
 
     result["source_references"] = references
