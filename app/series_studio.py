@@ -969,6 +969,21 @@ def render_series_episode(
     if abs(rendered_duration - expected_duration) > max(1.0, expected_duration * 0.01):
         raise RuntimeError("Rendered episode duration does not match its approved source scenes.")
 
+    locked_refs = _read_json(Path(series_dir) / "character_references_approval.json", {})
+    locked_cast = _read_json(Path(series_dir) / "voice_cast.json", {})
+    voice_license_evidence = {}
+    for speaker_id, cast_item in locked_cast.get("characters", {}).items():
+        card_path = Path(cast_item.get("model_card_path", ""))
+        engine_path = card_path.parent / "PIPER_ENGINE_LICENSE.txt" if card_path else Path()
+        voice_license_evidence[speaker_id] = {
+            "voice_id": cast_item.get("actual_voice_id"),
+            "license": cast_item.get("voice_license"),
+            "training_base": cast_item.get("training_base"),
+            "model_card_path": str(card_path),
+            "model_card_sha256": hashlib.sha256(card_path.read_bytes()).hexdigest() if card_path.is_file() else None,
+            "engine_license_path": str(engine_path),
+            "engine_license_present": engine_path.is_file(),
+        }
     report_path = project_dir / "work" / "series_quality_report.json"
     report = {
         "status": "rendered_pending_human_review",
@@ -982,6 +997,10 @@ def render_series_episode(
         "scene_count": len(sources),
         "dialogue_lines": len(_read_json(dialogue["manifest"], {}).get("voice_lines", [])),
         "speaker_models": dialogue["speaker_models"],
+        "voice_license_evidence": voice_license_evidence,
+        "character_reference_approval": locked_refs.get("assets", {}),
+        "character_reference_approval_status": locked_refs.get("status"),
+        "script_approval": _read_json(project_dir / "series_script_approval.json", {}),
         "captions": str(dialogue["captions"]),
         "licensed_music": music.get("metadata", {}) if isinstance(music, dict) else {},
         "music_warning": music.get("warning") if isinstance(music, dict) else None,
