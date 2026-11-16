@@ -185,6 +185,7 @@ STORY RULES:
 def prepare_puffy_story_voice(
     narration_path: Path,
     pitch_ratio: float = 1.12,
+    target_duration: float | None = None,
 ) -> tuple[Path, dict]:
     """Create a consistent, brighter Puffy storybook voice from the verified LJSpeech narration.
 
@@ -205,7 +206,7 @@ def prepare_puffy_story_voice(
 
     output_path = narration_path.parent / "puffy_storybook_narration.wav"
     metadata_path = narration_path.parent / "puffy_storybook_voice.json"
-    profile_version = 1
+    profile_version = 2
     digest = hashlib.sha256(narration_path.read_bytes()).hexdigest()
 
     try:
@@ -221,17 +222,32 @@ def prepare_puffy_story_voice(
         )
         return float(result.stdout.strip())
 
+    source_duration = probe_duration(narration_path)
+    if not (0 < source_duration <= 180):
+        raise ValueError(f"Unexpected Puffy narration duration: {source_duration:.2f}s")
+
+    if target_duration is not None:
+        target_duration = float(target_duration)
+        if not (15 <= target_duration <= 180):
+            raise ValueError(f"Unexpected target duration for Puffy narration: {target_duration:.2f}s")
+        tempo_scale = source_duration / target_duration
+        if not 0.78 <= tempo_scale <= 1.15:
+            raise ValueError(
+                f"The story narration is {source_duration:.1f}s for {target_duration:.1f}s of scenes. "
+                "The narration length needs adjusting; the studio will not distort the voice to force a fit."
+            )
+    else:
+        tempo_scale = 0.94
+    expected_duration = source_duration / tempo_scale
+
     if (
         output_path.is_file()
         and existing.get("source_sha256") == digest
         and existing.get("profile_version") == profile_version
-        and abs(probe_duration(output_path) - probe_duration(narration_path)) <= 0.8
+        and abs(float(existing.get("tempo_scale", 0)) - tempo_scale) < 0.005
+        and abs(probe_duration(output_path) - expected_duration) <= 0.8
     ):
         return output_path, existing
-
-    source_duration = probe_duration(narration_path)
-    if not (0 < source_duration <= 180):
-        raise ValueError(f"Unexpected Puffy narration duration: {source_duration:.2f}s")
 
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "a:0",
@@ -252,17 +268,17 @@ def prepare_puffy_story_voice(
     )
     if has_rubberband:
         voice_filter = (
-            f"rubberband=pitch={pitch_ratio:.3f}:tempo=1.0:formant=shifted,"
+            f"rubberband=pitch={pitch_ratio:.3f}:tempo={tempo_scale:.4f}:formant=shifted,"
             + polish
         )
-        method = "rubberband pitch and formant lift; duration preserved"
+        method = "rubberband pitch/formant lift with scene-length pacing"
     else:
         raised_rate = int(round(source_rate * pitch_ratio))
         voice_filter = (
             f"asetrate={raised_rate},aresample=48000,"
-            f"atempo={1.0 / pitch_ratio:.8f}," + polish
+            f"atempo={tempo_scale / pitch_ratio:.8f}," + polish
         )
-        method = "sample-rate pitch lift with tempo compensation"
+        method = "sample-rate pitch lift with scene-length tempo compensation"
 
     temporary_path = output_path.with_name(output_path.stem + ".partial.wav")
     temporary_path.unlink(missing_ok=True)
@@ -282,11 +298,11 @@ def prepare_puffy_story_voice(
         )
 
     styled_duration = probe_duration(temporary_path)
-    if abs(styled_duration - source_duration) > 0.8:
+    if abs(styled_duration - expected_duration) > 0.8:
         temporary_path.unlink(missing_ok=True)
         raise RuntimeError(
-            f"Puffy voice styling changed narration duration unexpectedly "
-            f"({source_duration:.2f}s to {styled_duration:.2f}s)."
+            f"Puffy voice styling produced an unexpected duration "
+            f"({styled_duration:.2f}s; expected {expected_duration:.2f}s)."
         )
     temporary_path.replace(output_path)
 
@@ -297,6 +313,8 @@ def prepare_puffy_story_voice(
         "base_voice_model_license": "Public Domain; model card verified by studio voice loader",
         "pitch_ratio": float(pitch_ratio),
         "pitch_lift_semitones_approx": round(12 * __import__("math").log2(pitch_ratio), 2),
+        "tempo_scale": round(tempo_scale, 4),
+        "target_duration_seconds": round(expected_duration, 3),
         "processing_method": method,
         "source_sha256": digest,
         "source_duration_seconds": round(source_duration, 3),
