@@ -40,6 +40,7 @@ def main():
         "Multi-clip compilation",
         "Animated engineering explainer",
         "prepare_reusable_episode_assets",
+        "importlib.reload(reusable_production)",
         "GEMINI_API_KEY",
         "Narrator voice:",
         "episode_brief.json",
