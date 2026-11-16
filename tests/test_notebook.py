@@ -44,6 +44,18 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
             with self.subTest(code_cell=index):
                 ast.parse(source)
 
+
+    def test_engineering_setup_pins_pyav_for_faster_whisper_compatibility(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        source = "\\n".join(
+            "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+            for cell in notebook["cells"]
+        )
+        self.assertIn('"av<19"', source)
+        self.assertIn('"faster-whisper>=1.1,<2"', source)
+        self.assertLess(source.index('"av<19"'), source.index('"faster-whisper>=1.1,<2"'))
+
     def test_only_one_active_colab_entry_point_is_documented(self):
         self.assertFalse((ROOT / "GTA6_AutoClipper_GrowthReady.ipynb").exists())
         self.assertTrue((ROOT / "archive" / "GTA6_AutoClipper_GrowthReady_DEPRECATED.ipynb").exists())
