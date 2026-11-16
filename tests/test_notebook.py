@@ -133,5 +133,20 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("projects/<Project ID>/", docs)
 
 
+    def test_existing_incomming_drive_folder_is_preserved_and_recovered(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        setup = "".join(notebook["cells"][1]["source"])
+        preparation = "".join(notebook["cells"][2]["source"])
+        self.assertIn('LEGACY_INCOMING_DIR = WORKSPACE / "incomming"', setup)
+        self.assertIn('INCOMING_DIR = LEGACY_INCOMING_DIR if LEGACY_INCOMING_DIR.is_dir()', setup)
+        self.assertIn('legacy_root = WORKSPACE / "incomming"', preparation)
+        self.assertIn('len(legacy_direct) == 6', preparation)
+        self.assertIn('Recovered the six Puffy story scenes', preparation)
+        self.assertIn('No supported video files were found in the selected project intake', preparation)
+        docs = (ROOT / "docs" / "COLAB_PRODUCTION_STUDIO.md").read_text(encoding="utf-8")
+        self.assertIn('historical folder spelling `incomming/`', docs)
+
+
 if __name__ == "__main__":
     unittest.main()
