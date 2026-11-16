@@ -155,3 +155,16 @@ Official references:
 ### What it does not automate
 
 It does not generate new Flow videos, log in to Google Flow on your behalf, upload to YouTube, guarantee engineering accuracy or guarantee YouTube monetisation. If fewer than two source pages can be verified, or the caption quality check fails, the studio stops rather than inventing facts or exporting unreliable captions.
+
+
+## Private Creator Studio dashboard
+
+The Colab setup cell now starts a browser dashboard connected to the same Drive workspace. It does not create a second copy of your projects or move your source clips.
+
+1. Run the normal setup cell. It starts the dashboard API against `MyDrive/GTA6_AutoClipper` and creates a temporary Cloudflare Quick Tunnel.
+2. Open the **Creator Studio dashboard** link printed by the setup cell. The link contains a random per-runtime access token; do not share it.
+3. The dashboard lists saved projects, source clips, current production stage, Puffy/Engineering narration details, available previews, scripts and export ZIPs. It refreshes project status automatically.
+4. Use **Open production controls** to start a new job or continue the selected project in the maintained Colab notebook. The video-generation and render engine remains in Colab; the dashboard does not pretend to run jobs independently of that runtime.
+5. Preview and download links are served from the existing Drive project. Export remains a deliberate step after reviewing the draft.
+
+This is a private, temporary personal dashboard, not a permanently hosted website. Its browser link works only while the Colab runtime and tunnel are active. Reopen the setup cell to start a new session link after a runtime reset. The dashboard API requires the random session token for project data and media routes; static interface files contain no project data.
