@@ -208,6 +208,7 @@ class ReusableProductionTests(unittest.TestCase):
 
     def test_whisper_loader_reuses_valid_drive_model_without_redownloading(self):
         from types import ModuleType
+        from unittest.mock import Mock
 
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "assets" / "whisper_models"
