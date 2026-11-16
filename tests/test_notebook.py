@@ -227,6 +227,11 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("Creator Studio", dashboard_html)
         self.assertIn("api/studio/projects", dashboard_js)
         self.assertIn("preview", dashboard_js)
+        dashboard_css = (ROOT / "app" / "static" / "studio.css").read_text(encoding="utf-8")
+        self.assertIn("Editorial, GenK-inspired direction", dashboard_css)
+        self.assertIn(".project-grid .project-card.featured", dashboard_css)
+        self.assertIn("project-thumbnail", dashboard_css)
+        self.assertIn("background:#111", dashboard_css)
 
 
 if __name__ == "__main__":
