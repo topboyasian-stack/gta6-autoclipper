@@ -89,7 +89,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn(COLAB_URL, first_cell)
 
 
-    def test_kids_story_replaces_compilation_without_voice_or_captions(self):
+    def test_kids_story_has_scene_grounded_narration_and_shared_voice(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
         notebook = json.loads(path.read_text(encoding="utf-8"))
         source = "\\n".join(
@@ -98,10 +98,36 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         )
         self.assertIn("Kids story production", source)
         self.assertNotIn("Multi-clip compilation", source)
-        self.assertIn('"narration_included": False', source)
+        self.assertIn("generate_kids_story_script", source)
+        self.assertIn("synthesize_episode_narration", source)
+        self.assertIn('"narration_included": bool(str(story_brief.get("original_script"', source)
         self.assertIn('"speech_captions_included": False', source)
+        self.assertIn("source_audio_mixed_under_narration", source)
         self.assertIn("preserve_source_audio_enabled", source)
+        self.assertIn("normalized_kids_direct_v1_", source)
+        self.assertIn("Joining and cleaning scene boundaries", source)
         self.assertIn("kids_story", source)
+
+    def test_kids_story_helper_is_separate_from_engineering_pipeline(self):
+        path = ROOT / "app" / "kids_story_studio.py"
+        source = path.read_text(encoding="utf-8")
+        self.assertIn("def generate_kids_story_script(", source)
+        self.assertIn("contact_sheet", source)
+        self.assertIn("story_lesson", source)
+        self.assertIn("source order", source)
+        self.assertIn("synthesize_episode_narration", (
+            (ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb").read_text(encoding="utf-8")
+        ))
+        # Engineering continues to use its established helper and renderer.
+        notebook = json.loads(
+            (ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb").read_text(encoding="utf-8")
+        )
+        combined = "\\n".join(
+            "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+            for cell in notebook["cells"]
+        )
+        self.assertIn("prepare_reusable_episode_assets", combined)
+        self.assertIn("render_engineering_episode(", combined)
 
 
     def test_all_modes_use_separate_auto_managed_drive_projects(self):
