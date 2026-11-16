@@ -156,3 +156,36 @@ Official references:
 ### What it does not automate
 
 It does not generate new Flow videos, log in to Google Flow on your behalf, upload to YouTube, guarantee engineering accuracy or guarantee YouTube monetisation. If fewer than two source pages can be verified, or the caption quality check fails, the studio stops rather than inventing facts or exporting unreliable captions.
+
+
+## THE 2:17 SIGNAL — serialized animated series
+
+The new default production is a story-first continuing mystery, not a scene-first children's story. Its source of truth is the separate series bible in \`series/the_217_signal/\`. The complete setup and limitations are documented in [THE 2:17 SIGNAL production guide](THE_217_SIGNAL_PRODUCTION.md).
+
+### First-season premise
+
+Amara Dike, a radio repairer in the fictional coastal city of Aderin Bay, restores a decommissioned emergency transmitter. At exactly 02:17, it begins receiving incomplete distress calls describing events approximately 24 hours before they happen. With journalist Dami Folarin and grid engineer Kato Mensah, she follows the warnings into the buried LANTERN project and the unresolved Night of Silence.
+
+The first season is outlined as eight connected episodes. Episode 1 is the only episode that can be prepared before any earlier episode has entered the approved continuity ledger. Later episode scripts read canonical continuity only; abandoned drafts do not change the story bible or future episode context.
+
+### Story-first production sequence
+
+1. Select **Original serialized series — THE 2:17 SIGNAL**. The output is fixed to landscape 1920×1080, with an intended 3–4 minute runtime.
+2. Generate the episode screenplay and its 24-scene silent Flow prompt pack before creating footage. Review the logline, immediate dramatic resolution, continuity in/out and ending hook.
+3. Generate the three character turnaround sheets with the separate prompts in \`series/the_217_signal/character_reference_prompts.md\`. Save the files to the persistent Drive folder \`series/the_217_signal/character_references/\` as \`amara_reference.png\`, \`dami_reference.png\` and \`kato_reference.png\`.
+4. Review the character identities and lock the approved reference images. Their fingerprints are stored; replacing a reference image requires re-approval.
+5. Select a proposed voice for each character, create the voice auditions and listen to them. The current Piper catalogue provides only three licence-checked US-English candidates. The voices are provisional and may not fit the intended regional accents. Duplicate fallback models are rejected. Do not approve a voice just because it can generate audio.
+6. Lock the voice cast only after every character has a distinct model and the human approval boxes are checked.
+7. In the same Google Flow project, add the approved character reference images for each scene and generate the 24 silent clips in prompt order. Dialogue and captions are created separately in the production studio. Export as \`scene_001.mp4\` through \`scene_024.mp4\` into the selected episode's incoming folder.
+8. Run the source/preparation and processing cells. The renderer requires locked character images, locked distinct voices and exactly 24 correctly numbered scenes. It creates per-character dialogue, an SRT file, the landscape episode master, music attribution records and a technical render report.
+9. Watch the entire episode and check the generated character images against the references. Visual identity cannot yet be automatically certified. Review every line, pronunciation, dialogue-to-picture fit, caption, cut, soundtrack and story beat.
+10. Type \`EXPORT\` only after review passes. The export action marks the episode canonical and updates the season ledger. A later episode cannot be drafted until every earlier episode is canonical.
+
+### Known limitations — do not mistake a gate for a guarantee
+
+- Google Flow generation remains manual. The notebook does not log in to Flow, create clips or consume Flow credits.
+- Reference images and prompt instructions encourage continuity but cannot force a video model to reproduce a face perfectly. Human review is compulsory.
+- This initial render creates voice dialogue independently of the Flow picture. It does not provide true frame-level lip-sync. Use over-shoulder compositions, cutaways, reaction shots and off-screen dialogue until a tested lip-sync process is available.
+- The episode renderer checks clip count/order, audio file timing, output codecs, dimensions and duration. It does not automatically judge acting quality, facial continuity, dramatic clarity or audience appeal.
+- Character designs, voice assets, script, Flow clips and music each need suitable rights for the intended commercial use. Keep model cards and music licence records with each export.
+- The series is in pre-production until reference sheets and voice casting are approved and an end-to-end pilot passes human review. There is no monetization guarantee.
