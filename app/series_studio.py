@@ -428,6 +428,39 @@ OUTPUT REQUIREMENTS:
     return package
 
 
+def set_series_voice_candidates(series_dir: Path, selections: dict[str, str]) -> dict:
+    """Persist a distinct, licence-checked Piper audition choice for every recurring role."""
+    from app.reusable_production import VOICE_MODELS
+
+    bible = load_series_bible(series_dir)
+    expected = {character["id"] for character in bible["cast"]}
+    if set(selections) != expected:
+        raise ValueError("Select a proposed voice for every recurring character.")
+    selected_ids = [str(selections[item]) for item in sorted(expected)]
+    if any(item not in VOICE_MODELS for item in selected_ids):
+        raise ValueError("One or more selected voices are not in the studio's verified model catalogue.")
+    if len(set(selected_ids)) != len(selected_ids):
+        raise ValueError("Each recurring character needs a distinct proposed voice.")
+    for character in bible["cast"]:
+        voice_id = str(selections[character["id"]])
+        character["voice_profile"] = {
+            "voice_id": voice_id,
+            "status": "provisional",
+            "casting_note": "Selected for audition only. Listen and approve before locking this role.",
+        }
+    bible["voice_cast"] = {
+        "status": "provisional_not_locked",
+        "unique_voice_per_character_required": True,
+        "narrator": "none; the story is carried by character dialogue and scene sound",
+        "approval_required": True,
+        "notes": "Proposed selections are not final until auditioned and approved.",
+    }
+    _write_json(Path(series_dir) / "series_bible.json", bible)
+    (Path(series_dir) / "voice_cast.json").unlink(missing_ok=True)
+    (Path(series_dir) / "voice_auditions" / "auditions.json").unlink(missing_ok=True)
+    return bible["voice_cast"]
+
+
 def generate_series_voice_auditions(workspace: Path, series_dir: Path) -> dict:
     """Generate one reusable audition phrase per proposed character voice."""
     from piper import PiperVoice
