@@ -32,7 +32,7 @@ The same processing path handles scene normalization, audio consistency, aspect-
 
 For the current AI-scene test, place the already-generated scene videos in one Drive folder or select them together in the first upload. Prefix filenames with `03_` and `04_` if those scenes should appear in that order. The notebook processes the supplied files; it does not consume more scene-generation credits.
 
-The notebook preserves existing Drive workspaces that use the historical folder spelling `incomming/`: when that folder already exists, it remains the active intake root. Fresh workspaces use `incoming/`. The studio never deletes or renames either folder, and it can recover the six numbered Puffy scenes already placed directly in the legacy `incomming/` folder.
+The notebook preserves existing Drive workspaces that use the historical folder spelling `incomming/`: when that folder already exists, it remains the active intake root. Fresh workspaces use `incoming/`. If a per-project intake is empty, the studio checks both folder spellings and their immediate project subfolders, preferring a folder whose name matches the current Puffy story. It never deletes, renames or moves the user's original uploads; recovered scenes are copied into the current project's `sources/` folder.
 
 ## Resume without uploading again
 
