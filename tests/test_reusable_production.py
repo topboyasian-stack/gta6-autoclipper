@@ -14,6 +14,7 @@ from app.reusable_production import (
     _extract_technical_pdf_text,
     fetch_verified_technical_sources,
     _extract_storyboard_frame,
+    _generate_content_with_fallback,
     generate_episode_from_flow_scenes,
     create_automatic_episode_captions,
     register_music_track,
@@ -144,6 +145,56 @@ class ReusableProductionTests(unittest.TestCase):
                         Path("bad_flow_scene.mp4"), 2.0, target
                     )
 
+
+
+    def test_gemini_503_retries_then_uses_lighter_stable_model(self):
+        from unittest.mock import Mock
+
+        class FakeServerError(Exception):
+            def __init__(self, code, message):
+                self.code = code
+                super().__init__(message)
+
+        success = SimpleNamespace(text='{"ok": true}')
+        generate = Mock(side_effect=[
+            FakeServerError(503, "503 UNAVAILABLE: high demand"),
+            FakeServerError(503, "503 UNAVAILABLE: high demand"),
+            success,
+        ])
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        config = SimpleNamespace(response_mime_type="application/json")
+
+        with patch("app.reusable_production.time.sleep") as sleep:
+            response, actual_model = _generate_content_with_fallback(
+                client=client,
+                model="gemini-3.8-flash",
+                contents=["episode prompt"],
+                config=config,
+            )
+
+        self.assertIs(response, success)
+        self.assertEqual(actual_model, "gemini-3.5-flash-lite")
+        self.assertEqual(
+            [call.kwargs["model"] for call in generate.call_args_list],
+            ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
+        )
+        self.assertEqual(sleep.call_count, 1)
+
+    def test_gemini_non_retryable_error_is_not_hidden_or_retried(self):
+        from unittest.mock import Mock
+
+        failure = ValueError("400 INVALID_ARGUMENT: malformed request")
+        generate = Mock(side_effect=failure)
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+
+        with self.assertRaisesRegex(ValueError, "INVALID_ARGUMENT"):
+            _generate_content_with_fallback(
+                client=client,
+                model="gemini-3.8-flash",
+                contents=["episode prompt"],
+                config=SimpleNamespace(),
+            )
+        self.assertEqual(generate.call_count, 1)
 
     def test_text_only_storyboard_fallback_continues_when_contact_sheet_fails(self):
         from unittest.mock import Mock
