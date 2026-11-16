@@ -78,6 +78,7 @@ def main():
         "music_license.json",
         "voice_MODEL_CARD.txt",
         "generate_flow_prompt_pack",
+        "importlib.reload(reusable_production)",
         "validate_flow_prompt_pack",
         "render_flow_prompt_pack_markdown",
         "save_flow_prompt_pack",
