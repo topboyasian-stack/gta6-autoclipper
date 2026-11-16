@@ -31,7 +31,7 @@ Drive is authoritative for assets already approved or edited there. The initiali
 
 ## Episode format and workflow
 
-The pilot format is 24 ordered clips, approximately eight seconds each, assembled into a 3–4 minute landscape 1920×1080 episode. A vertical Short is a separate discovery edit and must not replace the full episode.
+The pilot format is 24 ordered clips, approximately eight seconds each, assembled into a 3–4 minute landscape 1920×1080 episode. The screenplay may use up to six deliberate silent visual beats; at least 18 scenes must carry character dialogue, with the total dialogue checked against the available runtime. A vertical Short is a separate discovery edit and must not replace the full episode.
 
 1. Open the maintained Universal Colab Production Studio and select **Original serialized series — THE 2:17 SIGNAL**.
 2. Keep the default project ID for Season 1, Episode 1. Generate the screenplay and Flow prompt pack before creating any video.
