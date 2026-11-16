@@ -141,3 +141,164 @@ footer{display:flex;justify-content:space-between;gap:15px;padding:28px 0 5px;co
 @media(max-width:1150px){.main-content{padding-left:35px;padding-right:35px}.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.project-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:820px){.sidebar{width:68px;padding:22px 11px}.brand{justify-content:center;margin-bottom:45px}.brand>span:last-child,.nav-label,.nav-link:not(.active),.sidebar-note,.sidebar-help,.sidebar-foot{display:none}.side-nav{margin-top:0}.nav-link{justify-content:center;padding:12px}.nav-link.active{font-size:0}.nav-icon{font-size:19px}.main-content{margin-left:68px;padding:0 25px 28px}.hero{grid-template-columns:1fr}.hero-art{height:150px;max-width:300px;justify-self:center;margin-top:12px}.orbit-one{width:200px;height:110px}.orbit-two{width:250px;height:140px}.art-core{width:86px;height:86px;border-radius:27px}.chip-top{top:8px;right:6%}.chip-bottom{bottom:8px;left:2%}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.main-content{padding:0 16px 25px}.topbar{height:62px}.crumb{font-size:9px}.connection{font-size:8px}.hero{min-height:unset;padding:38px 0 25px}.hero h1{font-size:43px;letter-spacing:-2px}.hero-sub{font-size:10px}.hero-actions{gap:14px}.primary-button{padding:12px 13px;font-size:9px}.quiet-button{font-size:9px}.hero-art{height:130px}.stat-grid{gap:8px;padding-top:16px}.stat-card{min-height:105px;padding:13px}.stat-card strong{font-size:24px}.section-block{padding-top:35px}.section-heading h2{font-size:21px}.section-heading p:not(.eyebrow){font-size:9px}.mode-grid,.project-grid{grid-template-columns:1fr}.mode-card{min-height:170px}.project-cover{height:84px}.handoff{align-items:flex-start;flex-wrap:wrap}.handoff>a{margin-left:48px}footer{flex-direction:column;font-size:6px}.asset-card{padding:12px}}
+
+
+/* Editorial, GenK-inspired direction: a horizontal masthead, light canvas,
+   image-led cards and a clear lead story/project area. Original Studio branding. */
+:root{
+  color-scheme:light;
+  --bg:#f2f3f1;--panel:#fff;--panel-2:#f7f8f6;--line:#e0e3df;
+  --text:#171a17;--muted:#657067;--soft:#818a82;--accent:#6a9b43;
+}
+body{background:var(--bg);color:var(--text)}
+.app-shell{min-height:100vh}
+.sidebar{
+  width:100%;height:70px;position:sticky;inset:0 0 auto;z-index:10;
+  background:#111;border:0;border-bottom:3px solid #76a94d;
+  display:flex;flex-direction:row;align-items:center;gap:28px;padding:0 max(calc((100% - 1240px)/2),28px)
+}
+.brand{margin:0;min-width:210px;gap:11px}
+.brand b{color:#fff;font-size:14px;letter-spacing:1.5px}
+.brand small{color:#9ca49d}
+.brand-mark{border-color:#5c7d48}
+.nav-label,.sidebar-spacer,.sidebar-note,.sidebar-foot{display:none}
+.side-nav{display:flex;align-items:center;gap:5px;margin:0;flex:1}
+.nav-link{height:70px;border-radius:0;padding:0 15px;color:#c7cdc8;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap}
+.nav-link:hover,.nav-link.active{background:transparent;color:#fff;box-shadow:inset 0 -3px #8fbd65}
+.nav-icon{display:none}
+.sidebar-help{margin-left:auto;padding:11px 14px;background:#252a26;border:1px solid #3b463c;border-radius:3px;color:#c4e4a8;font-weight:700;white-space:nowrap}
+.main-content{margin:0 auto;max-width:1300px;padding:0 30px 40px}
+.topbar{height:52px;background:transparent;border-bottom:1px solid #dfe3dd}
+.crumb{font-size:10px;color:#758078}.crumb b{color:#242824}
+.connection{font-size:9px;color:#687469}
+.icon-button{background:#fff;border-color:#d8ded7;color:#525d54;border-radius:3px}
+.hero{
+  min-height:305px;margin:20px 0 0;padding:34px 38px;
+  grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);
+  background:#fff;border:1px solid #e0e4dd;border-top:3px solid #222;
+  border-radius:3px;box-shadow:0 3px 12px #1c281408
+}
+.hero .eyebrow,.section-heading .eyebrow{color:#628d43}
+.hero h1{font-size:clamp(38px,4.4vw,57px);color:#181c18;letter-spacing:-2.3px}
+.hero h1 em{color:#639544}
+.hero-sub{color:#626c64;font-size:11px;max-width:560px}
+.primary-button{border-radius:3px;background:#6f9d4a;color:#fff}
+.primary-button:hover{background:#5c873b;color:#fff}
+.quiet-button{color:#5f695f}
+.art-core{border-radius:3px;background:linear-gradient(145deg,#b7d99e,#557e48);box-shadow:0 12px 38px #47693a30;transform:none}
+.art-orbit{border-color:#c7d2bf}
+.orbit-two{border-color:#dce3d8}
+.art-chip{border-radius:3px;background:#fff;color:#384437;border-color:#dce4d8;box-shadow:0 5px 15px #202a1418}
+.stat-grid{gap:0;background:#fff;border:1px solid #e0e4dd;border-top:0;padding:0}
+.stat-card{background:#fff;border:0;border-right:1px solid #e7eae5;border-radius:0;min-height:97px;padding:15px 19px}
+.stat-card:last-child{border-right:0}
+.stat-card small{color:#7a857b;letter-spacing:1.2px}
+.stat-card strong{color:#1c211c;font-size:25px}
+.stat-icon{color:#6b9849}
+.stat-foot{color:#808982}
+.section-block{padding-top:36px}
+.section-heading{border-bottom:1px solid #d9ded7;padding-bottom:14px;margin-bottom:15px}
+.section-heading h2{font-size:23px;color:#161a16}
+.section-heading p:not(.eyebrow){color:#707a71}
+.mode-grid{gap:12px}
+.mode-card{
+  min-height:188px;background:#fff;border:1px solid #dfe4dc;border-radius:3px;
+  padding:0 16px 16px;box-shadow:0 2px 7px #1d281008
+}
+.mode-card:after{display:none}
+.mode-top{margin:0 -16px 0;padding:13px 16px;background:#e9eee6;border-bottom:1px solid #dce3d8}
+.mode-symbol{width:35px;height:35px;border-radius:2px;background:#d7e5cf;color:#426b34;font-size:20px}
+.mode-tag{color:#7d887b}
+.mode-card h3{color:#1c211c;font-size:14px;margin:15px 0 7px}
+.mode-card p{color:#687269;font-size:9px;max-width:300px}
+.mode-card a{color:#628d43}
+.mode-engineering .mode-top{background:#eeedf6}
+.mode-engineering .mode-symbol{color:#625c9b;background:#dfddef}
+.mode-gaming .mode-top{background:#f5eee5}
+.mode-gaming .mode-symbol{color:#9a6a39;background:#eadac8}
+.mode-video .mode-top{background:#e8f2ef}
+.mode-video .mode-symbol{color:#47796c;background:#d4e8e1}
+.projects-section{padding-top:40px}
+.project-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.project-card{background:#fff;border:1px solid #dfe3dd;border-radius:3px;box-shadow:0 2px 9px #1c281408}
+.project-cover{
+  height:142px;position:relative;overflow:hidden;border-radius:0;padding:16px 18px;
+  background:#283b2a;display:flex;align-items:flex-end;justify-content:space-between
+}
+.project-cover::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0000 35%,#0009 100%);pointer-events:none}
+.project-cover>*{position:relative;z-index:1}
+.project-cover>span:last-child{font-size:8px;color:#fff;text-shadow:0 1px 3px #000}
+.cover-mark{font-size:32px;color:#fff;text-shadow:0 2px 9px #0008}
+.cover-puffy{background:linear-gradient(135deg,#b0c99b,#547e4d 58%,#263b2c)}
+.cover-engineering{background:linear-gradient(135deg,#b9b3d8,#625b89 58%,#24233c)}
+.cover-general{background:linear-gradient(135deg,#c8b49a,#8c7658 58%,#343026)}
+.project-card-body{padding:14px 15px}
+.status-pill{border-radius:2px;font-weight:700}
+.project-card h3{font-size:14px;color:#1b201b}
+.project-sub{color:#818b81}
+.project-message{color:#657066}
+.voice-note{border-radius:2px;background:#edf3e9;color:#4d7041}
+.project-actions{border-color:#e7eae5}
+.small-button{border-radius:2px;background:#f4f6f2;color:#3f4b40;border-color:#dfe5dc}
+.small-button:hover{color:#4e7d36;border-color:#8eae79}
+.primary-small,.download-small{background:#6c9848;border-color:#6c9848;color:#fff}
+.primary-small:hover,.download-small:hover{background:#587e3c;color:#fff}
+.count-pill{border-radius:2px;border-color:#d6ddd2;color:#667267;background:#fff}
+.loading-card,.error-card,.empty-state{border-radius:3px;background:#fff}
+.asset-card{background:#fff;border-radius:3px;border-color:#dfe3dc}
+.asset-icon{border-radius:3px;background:#eaf0e5;color:#5c8542}
+.asset-status{border-radius:2px}
+.handoff{background:#eaf0e6;border:1px solid #d6e1d0;border-radius:3px}
+.handoff-mark{border-radius:3px;background:#d7e5cd;color:#547b3e}
+.handoff b{color:#253223}
+.handoff p{color:#647060}
+.handoff>a{color:#547f39}
+.preview-dialog{background:#fff;color:#171a17;border:1px solid #d7ddd4;border-radius:4px}
+.preview-dialog::backdrop{background:#111b}
+.close-button{border-radius:3px;background:#f1f4ef;color:#333;border-color:#d8dfd5}
+.toast{border-radius:3px;background:#26382b;border-color:#506b4b}
+footer{color:#7b857b}
+@media(max-width:1150px){
+  .sidebar{padding:0 20px;gap:12px}
+  .brand{min-width:185px}
+  .nav-link{padding:0 10px;font-size:9px}
+  .main-content{padding-left:22px;padding-right:22px}
+}
+@media(max-width:820px){
+  .sidebar{width:100%;height:auto;min-height:62px;padding:0 16px;position:sticky;flex-wrap:wrap;gap:6px}
+  .brand{justify-content:flex-start;margin:0;min-width:unset;padding:12px 0}
+  .brand>span:last-child{display:block}
+  .side-nav{order:3;flex-basis:100%;overflow-x:auto}
+  .nav-link{height:42px;display:flex;justify-content:flex-start;font-size:9px}
+  .nav-link:not(.active){display:flex}
+  .nav-icon{display:none}
+  .sidebar-help{margin-left:auto;font-size:9px}
+  .main-content{margin:0;padding:0 18px 28px}
+  .hero{grid-template-columns:1fr;padding:28px 24px}
+  .hero-art{max-width:320px;height:150px;justify-self:center}
+  .hero-art .art-orbit{display:block}
+  .hero-art .art-core{width:85px;height:85px}
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-card{border-bottom:1px solid #e7eae5}
+  .asset-grid{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .sidebar{gap:0}
+  .brand b{font-size:11px}
+  .brand small{font-size:7px}
+  .sidebar-help{padding:9px;font-size:8px}
+  .side-nav{gap:0}
+  .nav-link{padding:0 9px;font-size:8px}
+  .main-content{padding:0 12px 24px}
+  .topbar{height:45px}
+  .hero{padding:24px 17px;margin-top:12px}
+  .hero h1{font-size:39px}
+  .hero-art{height:115px}
+  .stat-card{padding:12px;min-height:89px}
+  .mode-grid,.project-grid{grid-template-columns:1fr}
+  .mode-card{min-height:158px}
+  .project-cover{height:160px}
+  .section-heading h2{font-size:20px}
+  .project-heading{align-items:flex-start}
+  footer{font-size:6px}
+}
