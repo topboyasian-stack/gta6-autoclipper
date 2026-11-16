@@ -387,6 +387,7 @@ OUTPUT REQUIREMENTS:
     except (TypeError, json.JSONDecodeError) as exc:
         raise RuntimeError("The series writer returned invalid JSON. No episode package was saved.") from exc
     package["season_number"] = int(season_number)
+    package["episode_number"] = int(episode_number)
     package = _validate_episode_package(package, bible, episode_number)
     package["series_id"] = bible["series_id"]
     package["series_title"] = bible["series_title"]
@@ -814,11 +815,11 @@ def render_series_episode(
     else:
         ambient_filter = "[0:a:0]volume=0[ambient];"
     if music_audio:
-        command += ["-i", str(music_audio)]
+        command += ["-stream_loop", "-1", "-i", str(music_audio)]
         graph = (
             ambient_filter
             + "[1:a:0]volume=1.0[dialogue];"
-            + "[2:a:0]volume=0.075,aloop=loop=-1:size=2e+09[score];"
+            + "[2:a:0]volume=0.075[score];"
             + "[ambient][dialogue][score]amix=inputs=3:duration=first:dropout_transition=2,"
               "alimiter=limit=0.94[a]"
         )
