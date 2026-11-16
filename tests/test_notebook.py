@@ -89,5 +89,20 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn(COLAB_URL, first_cell)
 
 
+    def test_kids_story_replaces_compilation_without_voice_or_captions(self):
+        path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        source = "\\n".join(
+            "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+            for cell in notebook["cells"]
+        )
+        self.assertIn("Kids story production", source)
+        self.assertNotIn("Multi-clip compilation", source)
+        self.assertIn('"narration_included": False', source)
+        self.assertIn('"speech_captions_included": False', source)
+        self.assertIn("preserve_source_audio_enabled", source)
+        self.assertIn("kids_story", source)
+
+
 if __name__ == "__main__":
     unittest.main()

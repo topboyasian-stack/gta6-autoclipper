@@ -37,7 +37,11 @@ def main():
         "Gaming highlights",
         "AI scene assembly",
         "Long-form video",
-        "Multi-clip compilation",
+        "Kids story production",
+        "narration_included",
+        "speech_captions_included",
+        "preserve_source_audio_enabled",
+        "KIDS STORY MODE",
         "Animated engineering explainer",
         "prepare_reusable_episode_assets",
         "importlib.reload(reusable_production)",
@@ -65,6 +69,7 @@ def main():
     ]
     missing = [term for term in required if term not in all_source]
     assert not missing, f"Notebook is missing required workflow features: {missing}"
+    assert "Multi-clip compilation" not in all_source, "The retired compilation mode must be replaced by Kids Story production."
 
     pipeline_source = PIPELINE.read_text(encoding="utf-8")
     pipeline_required = [
