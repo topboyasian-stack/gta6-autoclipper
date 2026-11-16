@@ -667,20 +667,21 @@ from app.studio_dashboard import (
 
 
 @app.get("/studio", response_class=HTMLResponse)
-def creator_studio_home(access_token: str = ""):
+def creator_studio_home(request: Request, access_token: str = ""):
     dashboard = ROOT / "app" / "static" / "studio.html"
     if not dashboard.is_file():
         raise HTTPException(503, "Creator Studio dashboard assets are missing.")
     response = HTMLResponse(dashboard.read_text(encoding="utf-8"))
     if STUDIO_ACCESS_TOKEN:
         import hmac
-        if not access_token or not hmac.compare_digest(access_token, STUDIO_ACCESS_TOKEN):
+        supplied = access_token or request.cookies.get("creator_studio_session", "")
+        if not supplied or not hmac.compare_digest(supplied, STUDIO_ACCESS_TOKEN):
             raise HTTPException(401, "Open the private dashboard link printed by the Colab setup cell.")
         # Keep the access token in an HttpOnly session cookie for media previews/downloads.
         # It is never placed on media URLs or written to server access logs.
         response.set_cookie(
             "creator_studio_session", STUDIO_ACCESS_TOKEN,
-            max_age=3600, httponly=True, secure=True, samesite="strict", path="/",
+            max_age=43200, httponly=True, secure=True, samesite="strict", path="/",
         )
     return response
 
