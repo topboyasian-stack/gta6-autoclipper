@@ -161,8 +161,11 @@ class ReusableProductionTests(unittest.TestCase):
             # model.bin on mounted filesystems which do not preserve Hub symlinks.
             (damaged / "model.bin").write_bytes(b"../." + b"x" * 100)
 
+            fw_package = ModuleType("faster_whisper")
+            fw_package.__path__ = []
             fw_utils = ModuleType("faster_whisper.utils")
             fw_utils._MODELS = {"base.en": "Systran/faster-whisper-base.en"}
+            fw_package.utils = fw_utils
             hub = ModuleType("huggingface_hub")
             downloaded = []
 
@@ -181,6 +184,7 @@ class ReusableProductionTests(unittest.TestCase):
 
             hub.snapshot_download = fake_snapshot_download
             fake_modules = {
+                "faster_whisper": fw_package,
                 "faster_whisper.utils": fw_utils,
                 "huggingface_hub": hub,
             }
@@ -211,8 +215,11 @@ class ReusableProductionTests(unittest.TestCase):
             model_dir.mkdir(parents=True)
             (model_dir / "model.bin").write_bytes((6).to_bytes(4, "little") + b"x" * 1_100_000)
 
+            fw_package = ModuleType("faster_whisper")
+            fw_package.__path__ = []
             fw_utils = ModuleType("faster_whisper.utils")
             fw_utils._MODELS = {"base.en": "Systran/faster-whisper-base.en"}
+            fw_package.utils = fw_utils
             hub = ModuleType("huggingface_hub")
             hub.snapshot_download = Mock(side_effect=AssertionError("valid local model must be reused"))
 
@@ -221,6 +228,7 @@ class ReusableProductionTests(unittest.TestCase):
                     self.model_path = model_path
 
             with patch.dict("sys.modules", {
+                "faster_whisper": fw_package,
                 "faster_whisper.utils": fw_utils,
                 "huggingface_hub": hub,
             }):
