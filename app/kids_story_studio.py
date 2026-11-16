@@ -179,3 +179,127 @@ STORY RULES:
     })
     script_path.write_text(f"# {title}\n\n{script}\n\n**Story lesson:** {lesson}\n", encoding="utf-8")
     return package
+
+
+
+def prepare_puffy_story_voice(
+    narration_path: Path,
+    pitch_ratio: float = 1.12,
+) -> tuple[Path, dict]:
+    """Create a consistent, brighter Puffy storybook voice from the verified LJSpeech narration.
+
+    The original narration WAV is never modified. If FFmpeg includes librubberband, pitch
+    and formants are shifted together while preserving duration. A deterministic resampling
+    fallback supplies a similar lift on standard Colab FFmpeg builds without rubberband.
+    """
+    import hashlib
+    import subprocess
+
+    narration_path = Path(narration_path)
+    if not narration_path.is_file():
+        raise FileNotFoundError(f"Base Puffy narrator audio is missing: {narration_path}")
+    if not 1.04 <= float(pitch_ratio) <= 1.20:
+        raise ValueError("Puffy storybook pitch ratio must be between 1.04 and 1.20.")
+
+    output_path = narration_path.parent / "puffy_storybook_narration.wav"
+    metadata_path = narration_path.parent / "puffy_storybook_voice.json"
+    profile_version = 1
+    digest = hashlib.sha256(narration_path.read_bytes()).hexdigest()
+
+    try:
+        existing = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        existing = {}
+
+    def probe_duration(path: Path) -> float:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        return float(result.stdout.strip())
+
+    if (
+        output_path.is_file()
+        and existing.get("source_sha256") == digest
+        and existing.get("profile_version") == profile_version
+        and abs(probe_duration(output_path) - probe_duration(narration_path)) <= 0.8
+    ):
+        return output_path, existing
+
+    source_duration = probe_duration(narration_path)
+    if not (0 < source_duration <= 180):
+        raise ValueError(f"Unexpected Puffy narration duration: {source_duration:.2f}s")
+
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=sample_rate", "-of", "csv=p=0", str(narration_path)],
+        capture_output=True, text=True, timeout=30, check=True,
+    )
+    source_rate = int(probe.stdout.strip().splitlines()[0])
+    filter_list = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-filters"],
+        capture_output=True, text=True, timeout=30, check=True,
+    ).stdout
+    has_rubberband = "rubberband" in filter_list
+
+    polish = (
+        "highpass=f=85,lowpass=f=13500,"
+        "acompressor=threshold=0.125:ratio=2.0:attack=18:release=140,"
+        "alimiter=limit=0.95"
+    )
+    if has_rubberband:
+        voice_filter = (
+            f"rubberband=pitch={pitch_ratio:.3f}:tempo=1.0:formant=shifted,"
+            + polish
+        )
+        method = "rubberband pitch and formant lift; duration preserved"
+    else:
+        raised_rate = int(round(source_rate * pitch_ratio))
+        voice_filter = (
+            f"asetrate={raised_rate},aresample=48000,"
+            f"atempo={1.0 / pitch_ratio:.8f}," + polish
+        )
+        method = "sample-rate pitch lift with tempo compensation"
+
+    temporary_path = output_path.with_name(output_path.stem + ".partial.wav")
+    temporary_path.unlink(missing_ok=True)
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y", "-i", str(narration_path),
+            "-af", voice_filter, "-ar", "48000", "-ac", "2",
+            "-c:a", "pcm_s16le", str(temporary_path),
+        ],
+        capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode:
+        temporary_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            "Puffy storybook voice styling failed. The original narrator WAV is unchanged. "
+            + (result.stderr or result.stdout or "")[-2500:]
+        )
+
+    styled_duration = probe_duration(temporary_path)
+    if abs(styled_duration - source_duration) > 0.8:
+        temporary_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Puffy voice styling changed narration duration unexpectedly "
+            f"({source_duration:.2f}s to {styled_duration:.2f}s)."
+        )
+    temporary_path.replace(output_path)
+
+    details = {
+        "profile_name": "Puffy Storybook",
+        "profile_version": profile_version,
+        "base_voice_model": "en_US-ljspeech-medium",
+        "base_voice_model_license": "Public Domain; model card verified by studio voice loader",
+        "pitch_ratio": float(pitch_ratio),
+        "pitch_lift_semitones_approx": round(12 * __import__("math").log2(pitch_ratio), 2),
+        "processing_method": method,
+        "source_sha256": digest,
+        "source_duration_seconds": round(source_duration, 3),
+        "styled_duration_seconds": round(styled_duration, 3),
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    _write_json(metadata_path, details)
+    return output_path, details
