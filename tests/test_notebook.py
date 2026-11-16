@@ -204,6 +204,8 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn('"Serialized fiction series"', full_source)
         self.assertIn("Generate screenplay + 24 Flow prompts", full_source)
         self.assertIn("generate_series_episode_package", full_source)
+        self.assertIn("approve_series_episode_script", full_source)
+        self.assertIn("series_script_approval.json", full_source)
         self.assertIn("generate_series_voice_auditions", full_source)
         self.assertIn("approve_series_voice_cast", full_source)
         self.assertIn("approve_series_character_references", full_source)
