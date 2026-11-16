@@ -1,6 +1,6 @@
 # Universal Colab Production Studio
 
-There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for gaming highlights, AI scene assembly, engineering explainers, kids stories, Shorts, or long-form videos.
+There is **one maintained Google Colab notebook** for all production types. You do not need to download or upload a different notebook for the new serialized fiction series, gaming highlights, AI scene assembly, engineering explainers, legacy Puffy stories, Shorts or long-form videos.
 
 **[Open the Universal Colab Production Studio directly in Google Colab](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/GTA6_AutoClipper_Browser_Only.ipynb)**
 
@@ -15,7 +15,8 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | Gaming highlights | One completed, permitted gameplay video | Ranked candidate highlights for manual review |
 | AI scene assembly | Two or more rendered AI scene videos | One assembled video |
 | Long-form video | One or more video files | One horizontal 16:9 video |
-| Kids story production (Puffy — narrated) | Two or more ordered Google Flow scene MP4s | Original scene-grounded children's story with shared licensed voice narration; scene audio mixed quietly underneath by default |
+| Serialized fiction series (THE 2:17 SIGNAL) | 24 ordered silent Google Flow clips plus locked series references and voice cast | Story-first 3–4 minute landscape episode with individual character dialogue, timed captions, licensed score and canonical continuity tracking |
+| Kids story production (Puffy — legacy test) | Two or more ordered Google Flow scene MP4s | Original scene-grounded children's story using the preserved Puffy Storybook profile |
 | Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
 The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook creates a six-scene prompt pack, but you generate the video clips in Google Flow and export the MP4s for the notebook to assemble.
@@ -82,7 +83,7 @@ Gaming highlight detection in the separate gaming mode remains a signal-based fi
 
 ## Puffy kids story mode — replaces the compilation slot
 
-Choose **Kids story production — Puffy / narrated story** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
+Choose **Kids story production — Puffy / legacy test** only to resume the old workflow. It remains inside the same Universal Colab Production Studio and is not the new main series.
 
 1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. The Project ID and its separate incoming folder are created automatically.
 2. Leave the auto-generated Project ID in place for this new story. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`. This is a separate intake folder, not the Engineering Explainer project.
@@ -91,7 +92,7 @@ Choose **Kids story production — Puffy / narrated story** from the existing Pr
 5. Keep **Mute original source/scene audio** unchecked to preserve Flow sound effects and ambience. Selecting Kids Story resets this setting to unmuted by default.
 6. Enter the actual rights basis, confirm it for these exact files, then run the same source-preparation, processing/preview, and export cells used by the other modes.
 
-The narrated Kids Story path inspects the supplied scene frames and writes one connected, age-appropriate story. It uses a dedicated **Puffy Storybook** narrator profile based on the licence-checked `en_US-ljspeech-medium` public-domain model, with a gentle pitch/formant lift and audio polish. The resulting synthetic narration is child-friendly in style; it is not a recording of an actual child. The profile and audio are saved separately from the Engineering narrator setting, so Engineering's Joe voice is not changed. Original Flow audio is retained underneath at a lower level unless muted. Scene joins are re-encoded to reset timestamps at cuts, and each intermediate video is checked against the source duration. Speech captions are not included in this mode. The engineering explainer continues to use its existing separate research, technical script, narration, caption-QA, licensed-music, and evidence-pack workflow.
+The legacy narrated Puffy Kids Story path inspects the supplied scene frames and writes one connected, age-appropriate story. It uses a dedicated **Puffy Storybook** narrator profile based on the licence-checked `en_US-ljspeech-medium` public-domain model, with a gentle pitch/formant lift and audio polish. The resulting synthetic narration is child-friendly in style; it is not a recording of an actual child. The profile and audio are saved separately from the Engineering narrator setting, so Engineering's Joe voice is not changed. Original Flow audio is retained underneath at a lower level unless muted. Scene joins are re-encoded to reset timestamps at cuts, and each intermediate video is checked against the source duration. Speech captions are not included in this mode. The engineering explainer continues to use its existing separate research, technical script, narration, caption-QA, licensed-music, and evidence-pack workflow.
 
 The export ZIP contains the finished MP4, YouTube metadata, and project manifest. The metadata reminds you to set the YouTube audience to **Made for Kids** when the video is directed to children. Review the complete story and confirm all Flow scene/audio rights before publishing.
 
