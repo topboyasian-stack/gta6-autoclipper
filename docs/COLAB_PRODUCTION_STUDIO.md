@@ -15,7 +15,7 @@ The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` fo
 | Gaming highlights | One completed, permitted gameplay video | Ranked candidate highlights for manual review |
 | AI scene assembly | Two or more rendered AI scene videos | One assembled video |
 | Long-form video | One or more video files | One horizontal 16:9 video |
-| Kids story production (Puffy — no narration) | Two or more ordered Google Flow scene MP4s | Visual children's story; no narration or speech captions; Flow scene audio retained by default |
+| Kids story production (Puffy — narrated) | Two or more ordered Google Flow scene MP4s | Original scene-grounded children's story with shared licensed voice narration; scene audio mixed quietly underneath by default |
 | Animated engineering explainer | Two or more original Google Flow engineering scenes | Research-led vertical explainer with automatically generated narration, SRT captions, licensed music, scene labels and production evidence |
 
 The same processing path handles scene normalization, audio consistency, aspect-ratio framing, and MP4 assembly. Output can be vertical 9:16 or horizontal 16:9. The notebook creates a six-scene prompt pack, but you generate the video clips in Google Flow and export the MP4s for the notebook to assemble.
@@ -56,7 +56,7 @@ This includes:
 
 On a later Colab session, select **Reuse this project's saved sources** and enter the same Project ID. Project state records the production mode; the studio refuses to reuse a project ID for a different mode, so an engineering project cannot accidentally be overwritten by a kids story or gaming edit. Previously prepared scene files are cached by source size, modification time, output dimensions, and audio setting, so unchanged files do not need to be normalized again.
 
-This applies to **Gaming highlights**, **AI scene assembly**, **Long-form video**, **Kids story production**, and **Animated engineering explainer**. Each receives its own `incoming/<Project ID>/` intake and `projects/<Project ID>/` workspace. Shared assets remain in the single `assets/` folder; the engineering voice, research and caption pipeline is still exclusive to Engineering Explainer mode.
+This applies to **Gaming highlights**, **AI scene assembly**, **Long-form video**, **Kids story production**, and **Animated engineering explainer**. Each receives its own `incoming/<Project ID>/` intake and `projects/<Project ID>/` workspace. Shared assets remain in the single `assets/` folder, including the licensed narrator voice model reused by Kids Story and Engineering Explainer. Technical research, engineering-specific storyboard rules, caption QA, music selection and the engineering evidence package remain exclusive to Engineering Explainer mode.
 
 Colab runtimes are temporary and may terminate. Keep the project in Google Drive rather than relying on `/content` as permanent storage.
 
@@ -82,7 +82,7 @@ Gaming highlight detection in the separate gaming mode remains a signal-based fi
 
 ## Puffy kids story mode — replaces the compilation slot
 
-Choose **Kids story production — Puffy / visual story (no narration)** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
+Choose **Kids story production — Puffy / narrated story** from the existing Production dropdown. This is a mode inside the same Universal Colab Production Studio, not another notebook.
 
 1. Leave the Story title at **Puffy's Little Lesson**, or change it for a new story. The Project ID and its separate incoming folder are created automatically.
 2. Leave the auto-generated Project ID in place for this new story. The Drive folder field is automatically set to `MyDrive/GTA6_AutoClipper/incoming/<Project ID>/`. This is a separate intake folder, not the Engineering Explainer project.
@@ -91,7 +91,7 @@ Choose **Kids story production — Puffy / visual story (no narration)** from th
 5. Keep **Mute original source/scene audio** unchecked to preserve Flow sound effects and ambience. Selecting Kids Story resets this setting to unmuted by default.
 6. Enter the actual rights basis, confirm it for these exact files, then run the same source-preparation, processing/preview, and export cells used by the other modes.
 
-**Narration is hard-disabled for this mode.** It does not install or load Piper, does not generate a voice track, does not run Faster-Whisper, and does not create SRT or burned-in speech captions. The engineering narrator, research, script generation, and engineering music pipeline remain exclusive to the engineering mode. The Kids Story export records `narration_included: false` and `speech_captions_included: false` in its manifest.
+The narrated Kids Story path uses the actual supplied scene frames to write one connected, age-appropriate story, then synthesizes a voiceover with the same licence-checked narrator model stored in the shared Drive assets. The narration is mixed over the assembled scenes; original Flow audio is retained underneath at a lower level unless muted. Scene joins are re-encoded to reset timestamps at cuts, and each intermediate video is checked against the source duration. Speech captions are not included in this mode. The engineering explainer continues to use its existing separate research, story/script, narration, caption-QA, licensed-music, and evidence-pack workflow.
 
 The export ZIP contains the finished MP4, YouTube metadata, and project manifest. The metadata reminds you to set the YouTube audience to **Made for Kids** when the video is directed to children. Review the complete story and confirm all Flow scene/audio rights before publishing.
 
