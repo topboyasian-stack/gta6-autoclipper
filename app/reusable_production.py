@@ -414,6 +414,83 @@ def select_shared_music(workspace: Path, project_dir: Path) -> dict[str, Path | 
     return {"audio": target_audio, "license": target_license, "metadata": metadata}
 
 
+def _extract_storyboard_frame(
+    scene_file: Path,
+    sample_at: float,
+    output_path: Path,
+) -> tuple[Path, bool]:
+    """Extract one storyboard frame, retrying different seek modes before failing clearly."""
+    from PIL import Image
+
+    scene_file = Path(scene_file)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    scale_filter = (
+        "scale=240:135:force_original_aspect_ratio=decrease,"
+        "pad=240:135:(ow-iw)/2:(oh-ih)/2"
+    )
+    attempts = [
+        (
+            "accurate timestamp seek",
+            ["-i", str(scene_file), "-ss", f"{sample_at:.3f}"],
+            scale_filter,
+            False,
+        ),
+        (
+            "fast timestamp seek",
+            ["-ss", f"{sample_at:.3f}", "-i", str(scene_file)],
+            scale_filter,
+            False,
+        ),
+        (
+            "first decodable frame fallback",
+            [
+                "-fflags", "+discardcorrupt",
+                "-err_detect", "ignore_err",
+                "-i", str(scene_file),
+            ],
+            "select=eq(n\\,0)," + scale_filter,
+            True,
+        ),
+    ]
+    errors = []
+    for label, input_args, video_filter, is_fallback in attempts:
+        output_path.unlink(missing_ok=True)
+        command = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+            *input_args,
+            "-an", "-sn", "-dn", "-frames:v", "1",
+            "-vf", video_filter, "-q:v", "3", str(output_path),
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 0:
+                try:
+                    with Image.open(output_path) as frame:
+                        frame.verify()
+                    return output_path, is_fallback
+                except Exception as exc:
+                    errors.append(f"{label}: output image could not be opened ({type(exc).__name__})")
+            else:
+                detail = (result.stderr or result.stdout or "").strip()[-1200:]
+                errors.append(
+                    f"{label}: FFmpeg exit {result.returncode}"
+                    + (f" ({detail})" if detail else "")
+                )
+        except subprocess.TimeoutExpired:
+            errors.append(f"{label}: FFmpeg timed out after 60 seconds")
+        except Exception as exc:
+            errors.append(f"{label}: {type(exc).__name__}: {exc}")
+        output_path.unlink(missing_ok=True)
+
+    detail = " | ".join(errors)
+    raise RuntimeError(
+        f"Could not extract a storyboard frame from {scene_file.name} at {sample_at:.2f}s. "
+        f"Tried accurate seek, fast seek and first-decodable-frame fallback. {detail}. "
+        "The Flow MP4 may be incomplete or use a damaged video stream; re-export only this clip from Flow."
+    )
+
+
 def _extract_scene_contact_sheet(scene_files: Iterable[Path], output_path: Path) -> Path:
     """Create a storyboard contact sheet with start/middle/end frames from every Flow clip."""
     from PIL import Image, ImageDraw, ImageFont
@@ -452,14 +529,10 @@ def _extract_scene_contact_sheet(scene_files: Iterable[Path], output_path: Path)
 
         for frame_index, sample_at in enumerate(sample_points):
             frame_path = work / f"{index + 1:02d}_{scene.stem}_{frame_index + 1}.jpg"
-            subprocess.run(
-                [
-                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                    "-ss", f"{sample_at:.3f}", "-i", str(scene), "-frames:v", "1",
-                    "-vf", "scale=240:135:force_original_aspect_ratio=decrease,pad=240:135:(ow-iw)/2:(oh-ih)/2",
-                    str(frame_path),
-                ],
-                check=True, capture_output=True, text=True,
+            frame_path, used_fallback = _extract_storyboard_frame(
+                scene_file=scene,
+                sample_at=sample_at,
+                output_path=frame_path,
             )
             with Image.open(frame_path) as frame:
                 thumbnail = frame.convert("RGB")
@@ -467,6 +540,8 @@ def _extract_scene_contact_sheet(scene_files: Iterable[Path], output_path: Path)
             y = row_y + scene_label_h
             sheet.paste(thumbnail, (x, y))
             frame_label = ("START", "MIDDLE", "END")[frame_index]
+            if used_fallback:
+                frame_label += " (fallback)"
             draw.text((x + 5, y + thumb_h + 4), frame_label, fill="black", font=font)
 
     output_path = Path(output_path)
