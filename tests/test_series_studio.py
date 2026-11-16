@@ -5,6 +5,8 @@ from pathlib import Path
 
 from app.series_studio import (
     _validate_episode_package,
+    approve_series_episode_script,
+    _validate_script_approval,
     approve_series_voice_cast,
     initialize_series_workspace,
     mark_series_episode_canonical,
@@ -124,6 +126,25 @@ class SerializedSeriesStudioTests(unittest.TestCase):
             approvals = {item["id"]: True for item in self.bible["cast"]}
             with self.assertRaisesRegex(ValueError, "duplicate models"):
                 approve_series_voice_cast(series_dir, approvals)
+
+
+    def test_script_approval_is_required_and_invalidated_when_files_change(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project_dir = Path(temp)
+            package = make_episode_package(self.bible)
+            package["season_number"] = 1
+            package["request_fingerprint"] = "test-fingerprint"
+            (project_dir / "series_episode_package.json").write_text(json.dumps(package), encoding="utf-8")
+            (project_dir / "original_script.md").write_text("# Approved script\n\nAmara: We must verify the warning.", encoding="utf-8")
+            (project_dir / "flow_prompt_pack.md").write_text("# Approved prompts\n\nScene 1", encoding="utf-8")
+            with self.assertRaises(PermissionError):
+                approve_series_episode_script(project_dir, False)
+            approval = approve_series_episode_script(project_dir, True)
+            self.assertEqual(approval["status"], "approved")
+            _validate_script_approval(project_dir, package)
+            (project_dir / "original_script.md").write_text("# Changed after approval", encoding="utf-8")
+            with self.assertRaisesRegex(PermissionError, "changed after approval"):
+                _validate_script_approval(project_dir, package)
 
     def test_unreviewed_episode_cannot_update_canonical_continuity(self):
         with tempfile.TemporaryDirectory() as temp:
