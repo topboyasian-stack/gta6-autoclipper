@@ -1440,6 +1440,88 @@ def _build_srt_from_words(words: list[dict], max_words: int = 5, max_chars: int 
     return "\n".join(blocks).rstrip() + "\n"
 
 
+
+def _load_drive_safe_whisper_model(model_size: str, model_cache: Path, model_class):
+    """Load Whisper from real files in Drive, avoiding Hugging Face symlink caches.
+
+    Hugging Face's default cache creates snapshot symlinks to blob files. Google Drive
+    mounts may represent those symlinks as small text files (for example, a relative
+    path beginning with '../'), which CTranslate2 then mistakes for model.bin bytes.
+    snapshot_download(local_dir=...) stores the model bundle as regular files; where
+    supported, local_dir_use_symlinks=False is passed explicitly for older Hub releases.
+    """
+    import inspect
+    from faster_whisper.utils import _MODELS
+    from huggingface_hub import snapshot_download
+
+    model_cache = Path(model_cache)
+    model_cache.mkdir(parents=True, exist_ok=True)
+    if Path(str(model_size)).is_dir():
+        model_dir = Path(str(model_size))
+    else:
+        safe_model_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(model_size)).strip("._") or "whisper"
+        model_dir = model_cache / "direct_files" / safe_model_name
+
+    def valid_model_binary(directory: Path) -> tuple[bool, int | None]:
+        binary_path = directory / "model.bin"
+        if not binary_path.is_file() or binary_path.is_symlink():
+            return False, None
+        try:
+            if binary_path.stat().st_size < 1_000_000:
+                return False, None
+            with binary_path.open("rb") as handle:
+                header = handle.read(4)
+            if len(header) != 4:
+                return False, None
+            binary_version = int.from_bytes(header, byteorder="little", signed=False)
+            # CTranslate2 model bundles use a small integer format version. Large
+            # values here usually indicate a symlink target string or an HTML/error file.
+            return 1 <= binary_version <= 100, binary_version
+        except OSError:
+            return False, None
+
+    valid, observed_version = valid_model_binary(model_dir)
+    if not valid:
+        if model_dir.is_symlink() or (model_dir.exists() and not model_dir.is_dir()):
+            model_dir.unlink(missing_ok=True)
+        elif model_dir.exists():
+            shutil.rmtree(model_dir)
+        model_dir.parent.mkdir(parents=True, exist_ok=True)
+
+        model_name = str(model_size)
+        repo_id = model_name if "/" in model_name else _MODELS.get(model_name)
+        if not repo_id:
+            raise ValueError(f"Unsupported faster-whisper model name: {model_name!r}")
+
+        download_args = {
+            "repo_id": repo_id,
+            "local_dir": str(model_dir),
+            "allow_patterns": [
+                "config.json",
+                "preprocessor_config.json",
+                "model.bin",
+                "tokenizer.json",
+                "vocabulary.*",
+            ],
+        }
+        # Recent huggingface_hub releases removed this option because local_dir
+        # downloads now use ordinary files. Older releases still need False explicitly.
+        if "local_dir_use_symlinks" in inspect.signature(snapshot_download).parameters:
+            download_args["local_dir_use_symlinks"] = False
+        snapshot_download(**download_args)
+
+        valid, observed_version = valid_model_binary(model_dir)
+        if not valid:
+            shutil.rmtree(model_dir, ignore_errors=True)
+            raise RuntimeError(
+                "The Whisper model download did not produce a valid CTranslate2 model.bin "
+                f"(observed binary header: {observed_version!r}). The incomplete model folder "
+                "was removed; check the Hugging Face download connection and rerun captions."
+            )
+
+    return model_class(str(model_dir), device="cpu", compute_type="int8")
+
+
 def create_automatic_episode_captions(
     project_dir: Path,
     workspace: Path,
@@ -1477,7 +1559,7 @@ def create_automatic_episode_captions(
 
     model_cache = Path(workspace) / "assets" / "whisper_models"
     model_cache.mkdir(parents=True, exist_ok=True)
-    whisper = WhisperModel(model_size, device="cpu", compute_type="int8", download_root=str(model_cache))
+    whisper = _load_drive_safe_whisper_model(model_size, model_cache, WhisperModel)
     segments, info = whisper.transcribe(
         str(audio_path),
         language="en",

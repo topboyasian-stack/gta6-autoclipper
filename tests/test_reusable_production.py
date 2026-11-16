@@ -15,6 +15,7 @@ from app.reusable_production import (
     fetch_verified_technical_sources,
     _extract_storyboard_frame,
     _generate_content_with_fallback,
+    _load_drive_safe_whisper_model,
     generate_episode_from_flow_scenes,
     create_automatic_episode_captions,
     register_music_track,
@@ -146,6 +147,96 @@ class ReusableProductionTests(unittest.TestCase):
                     )
 
 
+
+
+    def test_whisper_loader_repairs_drive_symlink_text_cache_with_regular_files(self):
+        from types import ModuleType
+        from unittest.mock import Mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "assets" / "whisper_models"
+            damaged = cache / "direct_files" / "base.en"
+            damaged.mkdir(parents=True)
+            # This is the exact kind of relative-path text that can masquerade as
+            # model.bin on mounted filesystems which do not preserve Hub symlinks.
+            (damaged / "model.bin").write_bytes(b"../." + b"x" * 100)
+
+            fw_package = ModuleType("faster_whisper")
+            fw_package.__path__ = []
+            fw_utils = ModuleType("faster_whisper.utils")
+            fw_utils._MODELS = {"base.en": "Systran/faster-whisper-base.en"}
+            fw_package.utils = fw_utils
+            hub = ModuleType("huggingface_hub")
+            downloaded = []
+
+            def fake_snapshot_download(repo_id, local_dir, allow_patterns, local_dir_use_symlinks=True):
+                downloaded.append({
+                    "repo_id": repo_id,
+                    "local_dir": local_dir,
+                    "allow_patterns": allow_patterns,
+                    "local_dir_use_symlinks": local_dir_use_symlinks,
+                })
+                target = Path(local_dir)
+                target.mkdir(parents=True, exist_ok=True)
+                (target / "model.bin").write_bytes((6).to_bytes(4, "little") + b"x" * 1_100_000)
+                (target / "config.json").write_text("{}", encoding="utf-8")
+                return str(target)
+
+            hub.snapshot_download = fake_snapshot_download
+            fake_modules = {
+                "faster_whisper": fw_package,
+                "faster_whisper.utils": fw_utils,
+                "huggingface_hub": hub,
+            }
+            loaded = {}
+
+            class FakeWhisperModel:
+                def __init__(self, model_path, device, compute_type):
+                    loaded.update(model_path=model_path, device=device, compute_type=compute_type)
+
+            with patch.dict("sys.modules", fake_modules):
+                model = _load_drive_safe_whisper_model("base.en", cache, FakeWhisperModel)
+
+            self.assertIsInstance(model, FakeWhisperModel)
+            self.assertEqual(len(downloaded), 1)
+            self.assertEqual(downloaded[0]["repo_id"], "Systran/faster-whisper-base.en")
+            self.assertFalse(downloaded[0]["local_dir_use_symlinks"])
+            final_model = Path(loaded["model_path"])
+            self.assertEqual(final_model, damaged)
+            self.assertFalse((final_model / "model.bin").is_symlink())
+            self.assertEqual((final_model / "model.bin").read_bytes()[:4], (6).to_bytes(4, "little"))
+
+    def test_whisper_loader_reuses_valid_drive_model_without_redownloading(self):
+        from types import ModuleType
+        from unittest.mock import Mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "assets" / "whisper_models"
+            model_dir = cache / "direct_files" / "base.en"
+            model_dir.mkdir(parents=True)
+            (model_dir / "model.bin").write_bytes((6).to_bytes(4, "little") + b"x" * 1_100_000)
+
+            fw_package = ModuleType("faster_whisper")
+            fw_package.__path__ = []
+            fw_utils = ModuleType("faster_whisper.utils")
+            fw_utils._MODELS = {"base.en": "Systran/faster-whisper-base.en"}
+            fw_package.utils = fw_utils
+            hub = ModuleType("huggingface_hub")
+            hub.snapshot_download = Mock(side_effect=AssertionError("valid local model must be reused"))
+
+            class FakeWhisperModel:
+                def __init__(self, model_path, device, compute_type):
+                    self.model_path = model_path
+
+            with patch.dict("sys.modules", {
+                "faster_whisper": fw_package,
+                "faster_whisper.utils": fw_utils,
+                "huggingface_hub": hub,
+            }):
+                model = _load_drive_safe_whisper_model("base.en", cache, FakeWhisperModel)
+
+            self.assertEqual(Path(model.model_path), model_dir)
+            hub.snapshot_download.assert_not_called()
 
     def test_gemini_503_retries_then_uses_lighter_stable_model(self):
         from unittest.mock import Mock
