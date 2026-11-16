@@ -36,7 +36,7 @@ class ReusableProductionTests(unittest.TestCase):
             generated = subprocess.run(
                 [
                     "ffmpeg", "-y", "-f", "lavfi",
-                    "-i", "sine=frequency=440:duration=2.0",
+                    "-i", "sine=frequency=440:duration=10.0",
                     "-ar", "22050", "-ac", "1", "-c:a", "pcm_s16le", str(source),
                 ],
                 capture_output=True, text=True, timeout=30,
@@ -44,7 +44,7 @@ class ReusableProductionTests(unittest.TestCase):
             self.assertEqual(generated.returncode, 0, generated.stderr[-1000:])
             original_bytes = source.read_bytes()
 
-            styled, metadata = prepare_puffy_story_voice(source, pitch_ratio=1.12)
+            styled, metadata = prepare_puffy_story_voice(source, pitch_ratio=1.12, target_duration=15.0)
 
             self.assertTrue(styled.is_file())
             self.assertNotEqual(styled, source)
@@ -52,7 +52,8 @@ class ReusableProductionTests(unittest.TestCase):
             self.assertEqual(metadata["profile_name"], "Puffy Storybook")
             self.assertEqual(metadata["base_voice_model"], "en_US-ljspeech-medium")
             self.assertGreater(metadata["pitch_lift_semitones_approx"], 1.5)
-            self.assertLess(abs(metadata["styled_duration_seconds"] - 2.0), 0.8)
+            self.assertLess(abs(metadata["styled_duration_seconds"] - 15.0), 0.8)
+            self.assertAlmostEqual(metadata["tempo_scale"], 10.0 / 15.0, places=2)
             self.assertTrue((Path(directory) / "puffy_storybook_voice.json").is_file())
 
     def test_official_minnesota_state_stormwater_manual_is_trusted(self):
