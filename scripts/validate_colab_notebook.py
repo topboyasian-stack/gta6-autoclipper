@@ -81,6 +81,9 @@ def main():
         "validate_flow_prompt_pack",
         "render_flow_prompt_pack_markdown",
         "save_flow_prompt_pack",
+        "_curated_technical_source_urls",
+        "_extract_technical_pdf_text",
+        "application/pdf",
     ]
     missing_pipeline = [term for term in pipeline_required if term not in pipeline_source]
     assert not missing_pipeline, f"Reusable production engine is missing features: {missing_pipeline}"
