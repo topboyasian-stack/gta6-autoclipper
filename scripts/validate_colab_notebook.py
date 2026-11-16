@@ -40,7 +40,7 @@ def main():
         "Kids story production",
         "narration_included",
         "speech_captions_included",
-        "original_scene_audio_preserved",
+        "preserve_source_audio_enabled",
         "KIDS STORY MODE",
         "Animated engineering explainer",
         "prepare_reusable_episode_assets",
