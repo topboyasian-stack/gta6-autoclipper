@@ -76,8 +76,3 @@ The publishing sequence is always manual:
 - `YOUTUBE_REDIRECT_URI`: optional override for `http://localhost:8000/youtube/oauth/callback`.
 
 See [the source and YouTube setup guide](docs/YOUTUBE_AND_LIVE_SOURCES.md).
-
-
-## Creator Studio dashboard
-
-The Universal Colab Production Studio can open a private, Drive-backed browser dashboard during setup. It displays saved projects, stage progress, previews, scripts, shared assets and export packages. Production itself continues to run in Colab; the dashboard is a clean project monitor and review surface, not an always-on paid processing service. See [the dashboard guide](docs/COLAB_PRODUCTION_STUDIO.md#private-creator-studio-dashboard).
