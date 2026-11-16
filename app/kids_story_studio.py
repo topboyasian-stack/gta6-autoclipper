@@ -119,7 +119,12 @@ STORY RULES:
   with keys "order", "scene_file", "scene_title", and "story_beat".
 - Preserve each scene_file exactly as provided; order must be 1 through {len(scenes)}.
 """
-    client = genai.Client(api_key=gemini_api_key.strip())
+    # Bound network waits so a stalled API request cannot leave Colab executing forever.
+    # HttpOptions.timeout is expressed in milliseconds by the Google Gen AI Python SDK.
+    client = genai.Client(
+        api_key=gemini_api_key.strip(),
+        http_options=types.HttpOptions(timeout=90_000),
+    )
     with Image.open(contact_sheet) as image:
         response, used_model = _generate_content_with_fallback(
             client=client,
