@@ -266,7 +266,7 @@ def render_series_flow_prompt_pack(package: dict, bible: dict) -> str:
             f"CAMERA: {scene['camera']}\n"
             f"CONTINUITY: {scene['continuity_notes']}\n"
             f"SHOT PROMPT: {scene['flow_prompt']}\n\n"
-            "No audible speech, no lip-synced dialogue, no text, no captions, no logos, no watermark."
+            "No audible speech, no speaking mouth movements, no lip-sync, no text, no captions, no logos, no watermark."
         )
         blocks.append(prompt)
         blocks.append("")
