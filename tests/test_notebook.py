@@ -100,7 +100,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertNotIn("Multi-clip compilation", source)
         self.assertIn('"narration_included": False', source)
         self.assertIn('"speech_captions_included": False', source)
-        self.assertIn("Original Flow scene audio", source)
+        self.assertIn("preserve_source_audio_enabled", source)
         self.assertIn("kids_story", source)
 
 
