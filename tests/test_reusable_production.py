@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from io import BytesIO
@@ -12,6 +13,7 @@ from app.reusable_production import (
     _curated_technical_source_urls,
     _extract_technical_pdf_text,
     fetch_verified_technical_sources,
+    _extract_storyboard_frame,
     create_automatic_episode_captions,
     register_music_track,
     select_shared_music,
@@ -85,6 +87,61 @@ class ReusableProductionTests(unittest.TestCase):
         self.assertIn("Mozilla/5.0", first_request.get_header("User-agent"))
 
 
+
+    def test_storyboard_frame_extraction_retries_accurate_then_fast_seek(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "frame.jpg"
+            calls = []
+
+            def fake_run(command, capture_output, text, timeout):
+                calls.append(command)
+                if len(calls) == 1:
+                    return subprocess.CompletedProcess(command, 234, "", "seek decode failed")
+                Image.new("RGB", (240, 135), "blue").save(target, format="JPEG")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch("app.reusable_production.subprocess.run", side_effect=fake_run):
+                frame, used_fallback = _extract_storyboard_frame(
+                    Path("flow_scene.mp4"), 1.5, target
+                )
+            self.assertTrue(frame.is_file())
+            self.assertFalse(used_fallback)
+            self.assertEqual(len(calls), 2)
+            self.assertIn("-ss", calls[1])
+
+    def test_storyboard_frame_extraction_uses_first_frame_fallback_and_labels_it(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "frame.jpg"
+            calls = []
+
+            def fake_run(command, capture_output, text, timeout):
+                calls.append(command)
+                if len(calls) < 3:
+                    return subprocess.CompletedProcess(command, 234, "", "timestamp seek failed")
+                Image.new("RGB", (240, 135), "green").save(target, format="JPEG")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch("app.reusable_production.subprocess.run", side_effect=fake_run):
+                frame, used_fallback = _extract_storyboard_frame(
+                    Path("flow_scene.mp4"), 3.0, target
+                )
+            self.assertTrue(frame.is_file())
+            self.assertTrue(used_fallback)
+            self.assertEqual(len(calls), 3)
+            self.assertIn("+discardcorrupt", calls[2])
+
+    def test_storyboard_frame_extraction_reports_the_exact_unreadable_clip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "frame.jpg"
+            def fail_run(command, capture_output, text, timeout):
+                return subprocess.CompletedProcess(command, 234, "", "invalid data found")
+            with patch("app.reusable_production.subprocess.run", side_effect=fail_run):
+                with self.assertRaisesRegex(RuntimeError, "bad_flow_scene.mp4"):
+                    _extract_storyboard_frame(
+                        Path("bad_flow_scene.mp4"), 2.0, target
+                    )
 
     def _valid_flow_payload(self):
         return {

@@ -84,6 +84,7 @@ def main():
         "save_flow_prompt_pack",
         "_curated_technical_source_urls",
         "_extract_technical_pdf_text",
+        "_extract_storyboard_frame",
         "application/pdf",
     ]
     missing_pipeline = [term for term in pipeline_required if term not in pipeline_source]
