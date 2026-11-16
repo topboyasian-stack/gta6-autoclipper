@@ -553,7 +553,7 @@ def approve_series_character_references(series_dir: Path, approvals: dict[str, b
                 f"Missing or incomplete reference image for {character['name']}: {asset}"
             )
         image_bytes = asset.read_bytes()
-        if not image_bytes.startswith(b"\\x89PNG\\r\\n\\x1a\\n") or len(image_bytes) < 24:
+        if not image_bytes.startswith(b"\x89PNG\r\n\x1a\n") or len(image_bytes) < 24:
             raise ValueError(f"Reference image for {character['name']} is not a valid PNG file.")
         import struct
         image_width, image_height = struct.unpack(">II", image_bytes[16:24])
@@ -589,7 +589,7 @@ def validate_series_scene_files(project_dir: Path, scene_files: Iterable[Path]) 
     for index, path in enumerate(ordered, 1):
         if not path.is_file() or path.stat().st_size < 1024:
             raise ValueError(f"Scene video is missing or incomplete: {path}")
-        match = re.match(r"^scene[_-]?(\\d{3})(?:[_-].*)?$", path.stem, flags=re.IGNORECASE)
+        match = re.match(r"^scene[_-]?(\d{3})(?:[_-].*)?$", path.stem, flags=re.IGNORECASE)
         if not match or int(match.group(1)) != index:
             raise ValueError(
                 f"Scene order is not safely verified at position {index}. Rename the approved clips "
