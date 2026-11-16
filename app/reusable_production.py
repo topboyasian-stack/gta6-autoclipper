@@ -520,23 +520,72 @@ def _trusted_technical_url(url: str) -> bool:
     if parsed.scheme != "https" or not parsed.hostname:
         return False
     host = parsed.hostname.lower()
-    if host.endswith((".gov", ".edu", ".int")):
+    if host.endswith((".gov", ".edu", ".int", ".state.mn.us")):
         return True
     trusted = {
-        "asce.org", "www.asce.org", "concrete.org", "www.concrete.org",
-        "usgbc.org", "www.usgbc.org", "iea.org", "www.iea.org",
+        "asce.org", "www.asce.org",
+        "concrete.org", "www.concrete.org",
+        "usgbc.org", "www.usgbc.org",
+        "iea.org", "www.iea.org",
         "aia.org", "www.aia.org",
+        "cmha.org", "www.cmha.org",
+        "masonryandhardscapes.org", "www.masonryandhardscapes.org",
     }
     return host in trusted
 
 
+def _curated_technical_source_urls(topic: str, engineering_question: str) -> list[str]:
+    """Known official sources for the parking-lot/permeable-pavement pilot when discovery URLs fail."""
+    subject = f"{topic} {engineering_question}".lower()
+    pavement_terms = (
+        "permeable pavement", "permeable pavements", "parking lot", "parking-lot",
+        "stormwater", "runoff", "rainwater", "green streets",
+    )
+    if not any(term in subject for term in pavement_terms):
+        return []
+    return [
+        "https://www.epa.gov/green-infrastructure/types-green-infrastructure",
+        "https://www.epa.gov/green-infrastructure/green-infrastructure-design-strategies",
+        "https://stormwater.pca.state.mn.us/types_of_permeable_pavement",
+        "https://stormwater.pca.state.mn.us/green_infrastructure_benefits_of_permeable_pavement",
+        "https://www.epa.gov/system/files/documents/2021-11/bmp-permeable-pavements.pdf",
+        "https://www.epa.gov/sites/default/files/2021-04/documents/green_streets_design_manual_feb_2021_web_res_small_508.pdf",
+        "https://ask.ifas.ufl.edu/publication/AE530",
+        "https://www.cmha.org/resource/pav-man-001-26/",
+    ]
+
+
+def _extract_technical_pdf_text(raw: bytes) -> str:
+    """Extract readable text from an official technical PDF using pypdf."""
+    from io import BytesIO
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise RuntimeError(
+            "A source is a PDF but pypdf is missing. Re-run the Colab processing setup to install it."
+        ) from exc
+
+    reader = PdfReader(BytesIO(raw), strict=False)
+    pages = []
+    for page in reader.pages[:80]:
+        try:
+            text = page.extract_text() or ""
+        except Exception:
+            text = ""
+        if text.strip():
+            pages.append(text)
+    return re.sub(r"\s+", " ", " ".join(pages)).strip()
+
+
 def fetch_verified_technical_sources(candidate_urls, max_pages: int = 5) -> list[dict]:
-    """Fetch and retain only accessible, text-bearing pages from trusted technical domains."""
+    """Fetch HTML or PDF sources from trusted technical domains, retaining useful error diagnostics."""
     from urllib.request import Request, urlopen
     from urllib.parse import urlparse
+    from urllib.error import HTTPError, URLError
 
     verified = []
     seen = set()
+    diagnostics = []
     for raw_url in candidate_urls:
         url = str(raw_url).strip()
         if url in seen or not _trusted_technical_url(url):
@@ -544,36 +593,78 @@ def fetch_verified_technical_sources(candidate_urls, max_pages: int = 5) -> list
         seen.add(url)
         request = Request(
             url,
-            headers={"User-Agent": "UniversalColabProductionStudio/1.0 (technical research)"},
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.7",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
         )
         try:
-            with urlopen(request, timeout=25) as response:
+            with urlopen(request, timeout=35) as response:
                 final_url = response.geturl()
                 content_type = response.headers.get("Content-Type", "").lower()
-                if not content_type.startswith("text/html") or not _trusted_technical_url(final_url):
+                if not _trusted_technical_url(final_url):
+                    diagnostics.append(f"{urlparse(url).hostname}: redirected outside the trusted-domain list")
                     continue
-                raw = response.read(1_500_000)
-            parser = _EpisodeResearchHTMLParser.Parser()
-            parser.feed(raw.decode("utf-8", errors="replace"))
-            page_text = re.sub(r"\s+", " ", " ".join(parser.parts)).strip()
+                raw = response.read(8_000_000)
+
+            parsed_path = urlparse(final_url).path.lower()
+            is_pdf = (
+                "application/pdf" in content_type
+                or parsed_path.endswith(".pdf")
+                or raw.lstrip().startswith(b"%PDF-")
+            )
+            if is_pdf:
+                page_text = _extract_technical_pdf_text(raw)
+                title = Path(parsed_path).name or "Technical PDF"
+            else:
+                is_html = (
+                    "text/html" in content_type
+                    or "application/xhtml+xml" in content_type
+                    or b"<html" in raw[:2000].lower()
+                    or b"<!doctype html" in raw[:2000].lower()
+                )
+                if not is_html:
+                    diagnostics.append(
+                        f"{urlparse(url).hostname}: unsupported content type {content_type or 'unknown'}"
+                    )
+                    continue
+                parser = _EpisodeResearchHTMLParser.Parser()
+                parser.feed(raw.decode("utf-8", errors="replace"))
+                page_text = re.sub(r"\s+", " ", " ".join(parser.parts)).strip()
+                title = " ".join(parser.title_parts).strip()[:240] or final_url
+
             if len(page_text) < 500:
+                diagnostics.append(f"{urlparse(url).hostname}: only {len(page_text)} readable characters")
                 continue
             verified.append({
-                "title": " ".join(parser.title_parts).strip()[:240] or final_url,
+                "title": title[:240],
                 "url": final_url,
                 "domain": urlparse(final_url).hostname or "",
                 "content_excerpt": page_text[:9000],
+                "content_type": "application/pdf" if is_pdf else "text/html",
                 "verified_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
+        except HTTPError as exc:
+            diagnostics.append(f"{urlparse(url).hostname}: HTTP {exc.code}")
+        except URLError as exc:
+            diagnostics.append(f"{urlparse(url).hostname}: network error ({type(exc.reason).__name__})")
         except Exception as exc:
-            continue
+            diagnostics.append(f"{urlparse(url).hostname}: {type(exc).__name__}")
+
         if len(verified) >= max_pages:
             break
 
     if len(verified) < 2:
+        detail = "; ".join(diagnostics[:6]) or "No candidate URL passed the trusted-domain check."
         raise RuntimeError(
-            "The studio could not fetch at least two credible technical pages for this topic. "
-            "No narration was generated. Narrow the topic or provide official .gov, .edu or engineering-body links."
+            "The studio could not retrieve at least two readable technical sources from trusted domains. "
+            f"Attempted {len(seen)} trusted URL(s). Retrieval details: {detail}. "
+            "No narration was generated. The next retry will use the pilot's built-in official EPA and "
+            "state engineering references as fallbacks."
         )
     return verified
 
@@ -599,7 +690,7 @@ def research_episode_topic(
         "List 5 to 8 direct HTTPS URLs to authoritative technical sources for an educational engineering episode. "
         "Prefer government science/engineering agencies, universities, established standards bodies, and recognized "
         "professional engineering institutions. Avoid blogs, forums, social media, search-result pages, product pages "
-        "and Wikipedia. Do not invent a URL; if uncertain, omit it. Return JSON only with key candidate_source_urls "
+        "and Wikipedia. Direct HTML pages and technical PDFs are both acceptable. Do not invent a URL; if uncertain, omit it. Return JSON only with key candidate_source_urls "
         "containing an array of URLs.\n"
         f"Topic: {topic}\nViewer question: {engineering_question}\nAdditional focus: {user_guidance or 'None'}"
     )
@@ -616,7 +707,11 @@ def research_episode_topic(
     except (TypeError, json.JSONDecodeError) as exc:
         raise RuntimeError("The research step did not return a valid list of technical source URLs.") from exc
 
-    verified = fetch_verified_technical_sources(candidates)
+    if not isinstance(candidates, list):
+        raise RuntimeError("The research step returned candidate_source_urls in an unexpected format.")
+    curated_sources = _curated_technical_source_urls(topic, engineering_question)
+    # Put the known official pilot references first; model-suggested URLs remain additional candidates.
+    verified = fetch_verified_technical_sources(curated_sources + candidates)
     retrieved_pages = "\n\n".join(
         f"SOURCE {index}: {item['title']}\nURL: {item['url']}\n"
         f"RETRIEVED PAGE TEXT:\n{item['content_excerpt']}"
