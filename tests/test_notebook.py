@@ -114,7 +114,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("def generate_kids_story_script(", source)
         self.assertIn("contact_sheet", source)
         self.assertIn("story_lesson", source)
-        self.assertIn("source order", source)
+        self.assertIn("scene order", source)
         self.assertIn("synthesize_episode_narration", (
             (ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb").read_text(encoding="utf-8")
         ))
