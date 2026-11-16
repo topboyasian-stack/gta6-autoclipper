@@ -1168,7 +1168,7 @@ Rules:
   "engineering_takeaway", "scene_manifest".
 - scene_manifest must be an array of objects with keys:
   "order", "scene_file", "scene_title", "visual_description", "engineering_explanation".
-- Keep each scene_file exactly as listed below, but you may order scenes into the most understandable real-world engineering sequence:
+- Keep each scene_file exactly as listed below:
 {json.dumps([p.name for p in scene_files], ensure_ascii=False)}
 """
     client = genai.Client(api_key=gemini_api_key.strip())
