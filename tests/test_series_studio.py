@@ -94,7 +94,7 @@ class SerializedSeriesStudioTests(unittest.TestCase):
         self.assertIn("dami_reference.png", prompt_pack)
         self.assertIn("No audible speech", prompt_pack)
         self.assertIn("scene_024.mp4", prompt_pack)
-        self.assertIn("do not redesign", prompt_pack.lower())
+        self.assertIn("do not reinterpret, redesign", prompt_pack.lower())
 
     def test_series_workspace_copies_templates_without_overwriting_drive_edits(self):
         with tempfile.TemporaryDirectory() as temp:
