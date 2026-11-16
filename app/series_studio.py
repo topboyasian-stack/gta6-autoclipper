@@ -397,6 +397,7 @@ OUTPUT REQUIREMENTS:
     package["status"] = "draft_not_canonical"
     package["flow_prompt_pack"] = "flow_prompt_pack.md"
     _write_json(package_path, package)
+    (project_dir / "series_script_approval.json").unlink(missing_ok=True)
     (project_dir / "original_script.md").write_text(
         f"# {package['episode_title']}\n\n"
         f"**Logline:** {package['logline']}\n\n"
@@ -459,6 +460,52 @@ def set_series_voice_candidates(series_dir: Path, selections: dict[str, str]) ->
     (Path(series_dir) / "voice_cast.json").unlink(missing_ok=True)
     (Path(series_dir) / "voice_auditions" / "auditions.json").unlink(missing_ok=True)
     return bible["voice_cast"]
+
+
+def approve_series_episode_script(project_dir: Path, human_review_passed: bool) -> dict:
+    """Record an explicit script/scene-plan review and fingerprint the approved package."""
+    if not human_review_passed:
+        raise PermissionError("The screenplay, scene order and ending hook have not been approved.")
+    project_dir = Path(project_dir)
+    package_path = project_dir / "series_episode_package.json"
+    script_path = project_dir / "original_script.md"
+    prompts_path = project_dir / "flow_prompt_pack.md"
+    package = _read_json(package_path)
+    if not isinstance(package, dict):
+        raise FileNotFoundError("Generate the episode screenplay before approving it.")
+    if not script_path.is_file() or not prompts_path.is_file():
+        raise FileNotFoundError("The script and Flow prompt pack must both exist before approval.")
+    approval = {
+        "status": "approved",
+        "episode": int(package["episode_number"]),
+        "season": int(package["season_number"]),
+        "episode_title": package["episode_title"],
+        "request_fingerprint": package.get("request_fingerprint"),
+        "package_sha256": hashlib.sha256(package_path.read_bytes()).hexdigest(),
+        "script_sha256": hashlib.sha256(script_path.read_bytes()).hexdigest(),
+        "flow_prompt_pack_sha256": hashlib.sha256(prompts_path.read_bytes()).hexdigest(),
+        "approved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "approval_basis": "Human review of the complete screenplay, scene sequence and ending hook.",
+    }
+    _write_json(project_dir / "series_script_approval.json", approval)
+    return approval
+
+
+def _validate_script_approval(project_dir: Path, package: dict) -> dict:
+    approval = _read_json(Path(project_dir) / "series_script_approval.json")
+    if not isinstance(approval, dict) or approval.get("status") != "approved":
+        raise PermissionError("The screenplay, scene sequence and ending hook must be reviewed and approved first.")
+    expected = {
+        "episode": int(package["episode_number"]),
+        "season": int(package["season_number"]),
+        "request_fingerprint": package.get("request_fingerprint"),
+        "package_sha256": hashlib.sha256((Path(project_dir) / "series_episode_package.json").read_bytes()).hexdigest(),
+        "script_sha256": hashlib.sha256((Path(project_dir) / "original_script.md").read_bytes()).hexdigest(),
+        "flow_prompt_pack_sha256": hashlib.sha256((Path(project_dir) / "flow_prompt_pack.md").read_bytes()).hexdigest(),
+    }
+    if any(approval.get(key) != value for key, value in expected.items()):
+        raise PermissionError("The screenplay or Flow prompts changed after approval. Review and approve the current package again.")
+    return approval
 
 
 def generate_series_voice_auditions(workspace: Path, series_dir: Path) -> dict:
@@ -579,6 +626,7 @@ def validate_series_scene_files(project_dir: Path, scene_files: Iterable[Path]) 
     package = _read_json(Path(project_dir) / "series_episode_package.json")
     if not isinstance(package, dict) or not package.get("scenes"):
         raise FileNotFoundError("Generate the screenplay and Flow prompt pack before adding scene videos.")
+    _validate_script_approval(project_dir, package)
     ordered = sorted([Path(path) for path in scene_files], key=_natural_key)
     expected = len(package["scenes"])
     if len(ordered) != expected:
