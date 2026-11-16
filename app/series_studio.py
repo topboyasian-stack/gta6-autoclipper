@@ -586,9 +586,15 @@ def validate_series_scene_files(project_dir: Path, scene_files: Iterable[Path]) 
             f"This episode requires exactly {expected} scene videos in order; found {len(ordered)}. "
             "Do not reuse clips from another episode or omit a scene."
         )
-    for path in ordered:
+    for index, path in enumerate(ordered, 1):
         if not path.is_file() or path.stat().st_size < 1024:
             raise ValueError(f"Scene video is missing or incomplete: {path}")
+        match = re.match(r"^scene[_-]?(\\d{3})(?:[_-].*)?$", path.stem, flags=re.IGNORECASE)
+        if not match or int(match.group(1)) != index:
+            raise ValueError(
+                f"Scene order is not safely verified at position {index}. Rename the approved clips "
+                "scene_001.mp4 through scene_024.mp4 before importing them."
+            )
     return ordered
 
 
