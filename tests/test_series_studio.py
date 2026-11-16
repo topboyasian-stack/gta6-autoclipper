@@ -7,7 +7,6 @@ from app.series_studio import (
     _validate_episode_package,
     approve_series_voice_cast,
     initialize_series_workspace,
-    load_series_bible,
     mark_series_episode_canonical,
     render_series_flow_prompt_pack,
     validate_series_bible,
@@ -36,7 +35,7 @@ def make_episode_package(bible, episode=1):
             "flow_prompt": "Show the character in the established location, checking one physical clue.",
             "dialogue_lines": [{
                 "speaker_id": character["id"],
-                "text": "We need to verify this warning before anyone changes the plan."
+                "text": "We need to verify this warning against the official record before anyone changes the plan or puts the market at risk."
             }],
         })
     return {
@@ -67,7 +66,7 @@ class SerializedSeriesStudioTests(unittest.TestCase):
         package = _validate_episode_package(make_episode_package(self.bible), self.bible, 1)
         self.assertEqual(len(package["scenes"]), 24)
         self.assertEqual(package["scene_runtime_seconds"], 192)
-        self.assertEqual(package["dialogue_word_count"], 288)
+        self.assertEqual(package["dialogue_word_count"], 504)
         self.assertIn("Amara Dike:", package["dialogue_script"])
 
     def test_episode_rejects_non_canon_character_speaker(self):
