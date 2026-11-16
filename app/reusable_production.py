@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
-PIPELINE_VERSION = 4
+PIPELINE_VERSION = 5
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
@@ -1044,6 +1044,71 @@ def save_flow_prompt_pack(pack: dict, workspace: Path) -> dict[str, Path]:
     return {"directory": output_dir, "json": json_path, "markdown": markdown_path}
 
 
+def _is_retryable_gemini_error(error: Exception) -> bool:
+    """Recognise temporary Gemini capacity and rate-limit errors without hiding bad requests."""
+    status = getattr(error, "code", None)
+    try:
+        status_code = int(status)
+    except (TypeError, ValueError):
+        status_code = None
+    if status_code in {429, 500, 502, 503, 504}:
+        return True
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "503 unavailable",
+            "service unavailable",
+            "temporarily unavailable",
+            "currently experiencing high demand",
+            "resource exhausted",
+            "rate limit",
+            "429",
+            "502",
+            "504",
+        )
+    )
+
+
+def _generate_content_with_fallback(
+    client,
+    model: str,
+    contents,
+    config,
+) -> tuple[object, str]:
+    """Retry temporary Gemini errors, then switch to a lighter stable model automatically."""
+    model_candidates = [model]
+    fallback_model = "gemini-3.5-flash-lite"
+    if fallback_model != model:
+        model_candidates.append(fallback_model)
+
+    failures = []
+    last_error = None
+    for candidate in model_candidates:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=candidate,
+                    contents=contents,
+                    config=config,
+                )
+                return response, candidate
+            except Exception as exc:
+                if not _is_retryable_gemini_error(exc):
+                    raise
+                last_error = exc
+                failures.append(f"{candidate} attempt {attempt + 1}: {type(exc).__name__}: {exc}")
+                if attempt == 0:
+                    time.sleep(3)
+
+    detail = " | ".join(failures)
+    raise RuntimeError(
+        "Gemini script generation is temporarily unavailable on the primary and fallback models. "
+        "Your saved clips and research remain intact; rerun processing to retry. "
+        + detail
+    ) from last_error
+
+
 def generate_episode_from_flow_scenes(
     project_dir: Path,
     scene_files: Iterable[Path],
@@ -1176,7 +1241,8 @@ Rules:
     if contact_sheet is not None:
         with Image.open(contact_sheet) as image:
             contents.append(image.copy())
-    response = client.models.generate_content(
+    response, used_model = _generate_content_with_fallback(
+        client=client,
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
@@ -1218,7 +1284,8 @@ Rules:
 
     result["source_references"] = references
     result["research_notes"] = research_notes
-    result["storyboard_model"] = model
+    result["storyboard_model"] = used_model
+    result["storyboard_requested_model"] = model
     result["storyboard_fingerprint"] = storyboard_fingerprint
     result["storyboard_reused"] = False
     result["storyboard_visual_review"] = (
