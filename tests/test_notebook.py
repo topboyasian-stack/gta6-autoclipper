@@ -193,5 +193,39 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn('historical folder spelling `incomming/`', docs)
 
 
+    def test_private_creator_studio_dashboard_tracks_colab_drive_projects(self):
+        notebook_path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        setup = "".join(notebook["cells"][1]["source"])
+        preparation = "".join(notebook["cells"][2]["source"])
+        processing = "".join(notebook["cells"][3]["source"])
+        exporting = "".join(notebook["cells"][4]["source"])
+
+        self.assertIn("cloudflared", setup)
+        self.assertIn('"_creator_studio_server"', setup)
+        self.assertIn('"_creator_studio_tunnel"', setup)
+        self.assertIn('"_GTA6_STUDIO_WORKSPACE"', setup.replace("GTA6_STUDIO_WORKSPACE", "_GTA6_STUDIO_WORKSPACE"))
+        self.assertIn('"_GTA6_STUDIO_ACCESS_TOKEN"', setup.replace("GTA6_STUDIO_ACCESS_TOKEN", "_GTA6_STUDIO_ACCESS_TOKEN"))
+        self.assertIn("def update_studio_progress(", preparation)
+        self.assertIn('PROJECT_DIR / "studio_progress.json"', preparation)
+        self.assertIn('update_studio_progress("story", "running"', processing)
+        self.assertIn('update_studio_progress("narration", "running"', processing)
+        self.assertIn('update_studio_progress("voice", "running"', processing)
+        self.assertIn('update_studio_progress("render", "running"', processing)
+        self.assertIn('"preview_ready"', processing)
+        self.assertIn('"exported"', exporting)
+
+        main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+        dashboard_html = (ROOT / "app" / "static" / "studio.html").read_text(encoding="utf-8")
+        dashboard_js = (ROOT / "app" / "static" / "studio.js").read_text(encoding="utf-8")
+        self.assertIn('@app.get("/studio"', main_source)
+        self.assertIn('@app.get("/api/studio/projects"', main_source)
+        self.assertIn("protect_private_studio_api", main_source)
+        self.assertIn("x-studio-token", main_source.lower())
+        self.assertIn("Creator Studio", dashboard_html)
+        self.assertIn("api/studio/projects", dashboard_js)
+        self.assertIn("preview", dashboard_js)
+
+
 if __name__ == "__main__":
     unittest.main()
