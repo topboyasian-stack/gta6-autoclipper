@@ -142,7 +142,7 @@ def build_project_summary(project_dir: Path) -> dict[str, Any]:
         "mode": str(state.get("mode") or "Production project"),
         "format": str(state.get("output_format") or ""),
         "created_at": str(state.get("created_at") or ""),
-        "updated_at": str(state.get("updated_at") or progress.get("updated_at") or ""),
+        "updated_at": str(progress.get("updated_at") or state.get("updated_at") or ""),
         "source_count": len(sources),
         "sources": sources[:12],
         "status": _project_status(project_dir, progress, draft, export_files),
