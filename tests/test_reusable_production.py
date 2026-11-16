@@ -1,11 +1,17 @@
 import json
 import tempfile
 import unittest
+from io import BytesIO
+from types import SimpleNamespace
+from unittest.mock import patch
 from pathlib import Path
 
 from app.reusable_production import (
     _build_srt_from_words,
     _trusted_technical_url,
+    _curated_technical_source_urls,
+    _extract_technical_pdf_text,
+    fetch_verified_technical_sources,
     create_automatic_episode_captions,
     register_music_track,
     select_shared_music,
@@ -16,6 +22,69 @@ from app.reusable_production import (
 
 
 class ReusableProductionTests(unittest.TestCase):
+
+    def test_official_minnesota_state_stormwater_manual_is_trusted(self):
+        self.assertTrue(_trusted_technical_url(
+            "https://stormwater.pca.state.mn.us/types_of_permeable_pavement"
+        ))
+        self.assertFalse(_trusted_technical_url(
+            "https://stormwater.pca.state.mn.us.attacker.example/types_of_permeable_pavement"
+        ))
+
+    def test_permeable_pavement_research_has_curated_official_fallbacks(self):
+        urls = _curated_technical_source_urls(
+            "How a Parking Lot Can Store a Storm",
+            "How can permeable pavement store rainwater beneath a parking lot?",
+        )
+        self.assertGreaterEqual(len(urls), 6)
+        self.assertTrue(any(url.endswith("bmp-permeable-pavements.pdf") for url in urls))
+        self.assertTrue(all(_trusted_technical_url(url) for url in urls))
+
+    def test_pdf_extraction_uses_pypdf_text_layer(self):
+        from pypdf import PdfWriter
+        writer = PdfWriter()
+        writer.add_blank_page(width=300, height=300)
+        buffer = BytesIO()
+        writer.write(buffer)
+        with patch("pypdf.PdfReader") as reader:
+            reader.return_value.pages = [
+                SimpleNamespace(extract_text=lambda: "Permeable pavement stores stormwater in a stone reservoir. " * 20)
+            ]
+            extracted = _extract_technical_pdf_text(buffer.getvalue())
+        self.assertIn("stone reservoir", extracted)
+        self.assertGreater(len(extracted), 500)
+
+    def test_html_fetch_uses_browser_headers_and_keeps_two_trusted_sources(self):
+        class FakeResponse:
+            def __init__(self, url):
+                self.url = url
+                self.headers = {"Content-Type": "text/html; charset=utf-8"}
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def geturl(self):
+                return self.url
+            def read(self, _limit):
+                return (
+                    "<html><head><title>Official Stormwater Guide</title></head><body>"
+                    + ("Permeable pavement allows rainwater to pass through and enter an engineered stone reservoir. " * 12)
+                    + "</body></html>"
+                ).encode("utf-8")
+
+        urls = [
+            "https://www.epa.gov/green-infrastructure/types-green-infrastructure",
+            "https://stormwater.pca.state.mn.us/types_of_permeable_pavement",
+        ]
+        with patch("urllib.request.urlopen", side_effect=[FakeResponse(url) for url in urls]) as mocked:
+            found = fetch_verified_technical_sources(urls)
+        self.assertEqual(len(found), 2)
+        self.assertEqual(found[0]["content_type"], "text/html")
+        self.assertGreaterEqual(len(found[1]["content_excerpt"]), 500)
+        first_request = mocked.call_args_list[0].args[0]
+        self.assertIn("Mozilla/5.0", first_request.get_header("User-agent"))
+
+
 
     def _valid_flow_payload(self):
         return {
