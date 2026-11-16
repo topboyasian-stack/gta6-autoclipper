@@ -103,6 +103,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn('KIDS_VOICE_ID = "en_US-ljspeech-medium"', source)
         self.assertIn("prepare_puffy_story_voice", source)
         self.assertIn("importlib.reload(_kids_story_module)", source)
+        self.assertIn("Refreshing the Kids Story code from GitHub main", source)
         self.assertIn("Stage 1/4", source)
         self.assertIn("Stage 2/4", source)
         self.assertIn("Stage 3/4", source)
