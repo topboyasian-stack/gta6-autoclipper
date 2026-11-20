@@ -118,7 +118,11 @@ def generate_episode(
     except ImportError as exc:
         raise RuntimeError("Install google-genai before running the planner stage.") from exc
 
-    client = genai.Client(api_key=key)
+    # Bound each remote model request so Colab does not sit indefinitely without feedback.
+    client = genai.Client(
+        api_key=key,
+        http_options=types.HttpOptions(timeout=180000),
+    )
     primary = primary_model or PLANNER_MODEL
     candidates = [primary]
     if FALLBACK_PLANNER_MODEL and FALLBACK_PLANNER_MODEL not in candidates:
@@ -128,23 +132,33 @@ def generate_episode(
     used_model = None
     for model in candidates:
         try:
+            print(
+                f"Gemini planner: requesting {scene_count} scenes from {model} "
+                "(request timeout: 180 seconds)…",
+                flush=True,
+            )
             response = client.models.generate_content(
                 model=model,
                 contents=_make_prompt(topic, int(scene_count)),
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    # Use raw JSON Schema to avoid a google-genai SDK bug: response_schema
-                    # converts Pydantic's additionalProperties flag into a proto field rejected
-                    # by Gemini Developer API. Gemini supports JSON Schema via response_json_schema.
+                    # Use raw JSON Schema; Pydantic model validation follows the response.
                     response_json_schema=_gemini_response_schema(),
                     temperature=0.8,
                 ),
             )
+            print(f"Gemini planner: response received from {model}; validating episode…", flush=True)
             package = _episode_from_response(response)
             used_model = model
+            print(f"Gemini planner: validated {len(package.scenes)} scenes.", flush=True)
             break
         except Exception as exc:
             last_error = exc
+            print(f"Gemini planner: {model} failed ({type(exc).__name__}): {exc}", flush=True)
+            # Invalid requests and permission errors will not be fixed by changing models.
+            status_code = getattr(exc, "code", None)
+            if status_code in {400, 401, 403}:
+                break
     if package is None:
         raise RuntimeError(
             "Gemini planning failed on the configured model and fallback. "
