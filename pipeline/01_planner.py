@@ -61,6 +61,41 @@ def _episode_from_response(response: Any) -> EpisodePackage:
         return EpisodePackage.model_validate_json(text[start : end + 1])
 
 
+
+# Gemini Developer API's raw JSON Schema route accepts a documented subset of JSON Schema.
+# Keep those supported keywords on the wire; Pydantic still enforces all constraints locally.
+_GEMINI_SCHEMA_KEYS = {
+    "$id", "$defs", "$ref", "$anchor", "type", "format", "title", "description",
+    "enum", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum",
+    "anyOf", "oneOf", "properties", "additionalProperties", "required", "propertyOrdering",
+}
+
+
+def _gemini_response_schema() -> dict:
+    """Return an API-compatible JSON Schema; strict Pydantic validation remains downstream."""
+    source = EpisodePackage.model_json_schema()
+
+    def clean(node: Any) -> Any:
+        if not isinstance(node, dict):
+            return node
+        result = {}
+        for key, value in node.items():
+            if key not in _GEMINI_SCHEMA_KEYS:
+                continue
+            if key in {"$defs", "properties"} and isinstance(value, dict):
+                # Preserve definition/property names; clean each associated schema node.
+                result[key] = {name: clean(child) for name, child in value.items()}
+            elif key in {"items", "additionalProperties"} and isinstance(value, dict):
+                result[key] = clean(value)
+            elif key in {"anyOf", "oneOf", "prefixItems"} and isinstance(value, list):
+                result[key] = [clean(child) for child in value]
+            else:
+                result[key] = value
+        return result
+
+    return clean(source)
+
+
 def generate_episode(
     topic: str,
     output_dir: Path,
@@ -101,7 +136,7 @@ def generate_episode(
                     # Use raw JSON Schema to avoid a google-genai SDK bug: response_schema
                     # converts Pydantic's additionalProperties flag into a proto field rejected
                     # by Gemini Developer API. Gemini supports JSON Schema via response_json_schema.
-                    response_json_schema=EpisodePackage.model_json_schema(),
+                    response_json_schema=_gemini_response_schema(),
                     temperature=0.8,
                 ),
             )
