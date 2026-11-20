@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -44,6 +45,28 @@ async def _synthesize(text: str, target_mp3: Path, voice: str) -> None:
 
     communicate = edge_tts.Communicate(text=text, voice=voice, rate="-5%", pitch="-4Hz")
     await communicate.save(str(target_mp3))
+
+
+def _run_async_safely(coroutine) -> None:
+    """Run Edge TTS from CLI or a notebook that already owns an asyncio loop."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(coroutine)
+        return
+
+    outcome: dict[str, BaseException] = {}
+    def worker():
+        try:
+            asyncio.run(coroutine)
+        except BaseException as exc:
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    thread.join()
+    if "error" in outcome:
+        raise outcome["error"]
 
 
 def _word_cues(model, audio_path: Path, offset: float) -> tuple[list[dict], float]:
@@ -104,6 +127,7 @@ def generate_audio_and_subtitles(
     voice: str | None = None,
     whisper_model_name: str = WHISPER_MODEL,
     make_subtitles: bool = True,
+    whisper_device: str | None = None,
 ) -> dict:
     """Synthesize each scene; use Faster-Whisper timestamps for the combined SRT."""
     import json
@@ -129,7 +153,7 @@ def generate_audio_and_subtitles(
         mp3_path = audio_dir / f"{scene_id}.mp3"
         wav_path = audio_dir / f"{scene_id}.wav"
         if not mp3_path.is_file():
-            asyncio.run(_synthesize(text, mp3_path, selected_voice))
+            _run_async_safely(_synthesize(text, mp3_path, selected_voice))
         if not wav_path.is_file() or wav_path.stat().st_mtime < mp3_path.stat().st_mtime:
             _run([
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -169,9 +193,9 @@ def generate_audio_and_subtitles(
     except ImportError as exc:
         raise RuntimeError("faster-whisper is required for word-timed captions. Install project requirements.") from exc
 
-    device = os.getenv("MYSTERY_WHISPER_DEVICE", "cpu").strip().lower()
+    device = (whisper_device or os.getenv("MYSTERY_WHISPER_DEVICE", "cpu")).strip().lower()
     if device not in {"cpu", "cuda"}:
-        device = "cpu"
+        raise ValueError("whisper_device must be 'cpu' or 'cuda'.")
     compute_type = "float16" if device == "cuda" else "int8"
     model = WhisperModel(whisper_model_name, device=device, compute_type=compute_type)
     all_words: list[dict] = []
