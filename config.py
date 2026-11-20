@@ -9,6 +9,12 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+except ImportError:
+    # Environment variables and Colab Secrets still work without python-dotenv.
+    pass
 DEFAULT_OUTPUT_DIR = Path(os.getenv("MYSTERY_OUTPUT_DIR", PROJECT_ROOT / "output"))
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
