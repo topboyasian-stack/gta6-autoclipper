@@ -143,6 +143,9 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertEqual(result["generated"], 0)
         self.assertEqual(result["pending"], 24 + 1 + 3)
         self.assertEqual(len(plan), 28)
+        markdown = Path(result["plan_markdown"]).read_text(encoding="utf-8")
+        self.assertIn("## Starting Frame", markdown)
+        self.assertIn("## Character Reference", markdown)
         self.assertFalse((self.output / "frames" / "scene_001.png").exists())
 
     def test_audio_stage_caption_helpers_produce_valid_srt_timestamps(self):
@@ -170,6 +173,26 @@ class MysteryPipelineTests(unittest.TestCase):
         assembly = load_numbered("05_assemble.py", "test_assemble")
         with self.assertRaisesRegex(FileNotFoundError, "required scene media is missing"):
             assembly.assemble_episode(self.output)
+
+    def test_colab_notebook_code_cells_compile_and_new_mode_is_wired(self):
+        notebook_path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        self.assertEqual(len(notebook["cells"]), 5)
+        code_cells = [
+            (index, "".join(cell.get("source", [])))
+            for index, cell in enumerate(notebook["cells"])
+            if cell.get("cell_type") == "code"
+        ]
+        for index, source in code_cells:
+            compile(source, f"<notebook-cell-{index}>", "exec")
+        first_code = dict(code_cells)[1]
+        self.assertIn("Mystery & Sci-Fi Automation", first_code)
+        self.assertIn("_prepare_mystery_clicked", first_code)
+        self.assertIn("_assemble_mystery_clicked", first_code)
+        for index in (2, 3, 4):
+            self.assertTrue(dict(code_cells)[index].startswith(
+                'if mode_widget.value != "Mystery & Sci-Fi Automation":'
+            ))
 
     def test_cli_help_is_available_without_calling_external_services(self):
         result = subprocess.run(
