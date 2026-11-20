@@ -113,6 +113,25 @@ def generate_image_assets(
     plan = _prompt_plan(package, out)
     plan_path = out / "assets_generation_plan.json"
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    markdown_path = out / "assets_generation_plan.md"
+    markdown_lines = [
+        "# Image generation plan",
+        "",
+        f"Episode: {package.title}",
+        "",
+        "Image API generation is optional. If you are using Google AI Pro only, review the prompts and use an available in-plan image workflow rather than assuming Gemini Developer API image generation is included.",
+        "",
+    ]
+    for item in plan:
+        markdown_lines.extend([
+            f"## {item['kind'].replace('_', ' ').title()} — {item['key']}",
+            "",
+            f"Output path: {item['output']}",
+            "",
+            item["prompt"],
+            "",
+        ])
+    markdown_path.write_text("\n".join(markdown_lines).rstrip() + "\n", encoding="utf-8")
     missing = [item for item in plan if not Path(item["output"]).is_file()]
     if not (allow_paid or ALLOW_PAID_IMAGE_API):
         return {
@@ -120,6 +139,7 @@ def generate_image_assets(
             "generated": 0,
             "pending": len(missing),
             "plan": str(plan_path),
+            "plan_markdown": str(markdown_path),
             "message": (
                 "Image API generation was skipped. Gemini API image calls may be billed separately from "
                 "Google AI Pro. Use this plan for an authorized image workflow, or explicitly opt in after "
@@ -167,6 +187,7 @@ def generate_image_assets(
         "pending": remaining,
         "batch_limit": limit,
         "plan": str(plan_path),
+        "plan_markdown": str(markdown_path),
         "failures": failures,
         "model": IMAGE_MODEL,
         "warning": "Check API billing and inspect assets before using them in production.",
