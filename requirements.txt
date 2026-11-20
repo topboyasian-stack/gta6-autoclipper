@@ -6,3 +6,9 @@ google-auth-oauthlib>=1.2,<2
 google-auth-httplib2>=0.2,<1
 pypdf>=5,<7
 Pillow>=10,<13
+google-genai>=1.0.0,<2
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2
+edge-tts>=7.0,<9
+faster-whisper>=1.0,<2
+av==17.1.0
