@@ -98,7 +98,10 @@ def generate_episode(
                 contents=_make_prompt(topic, int(scene_count)),
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=EpisodePackage,
+                    # Use raw JSON Schema to avoid a google-genai SDK bug: response_schema
+                    # converts Pydantic's additionalProperties flag into a proto field rejected
+                    # by Gemini Developer API. Gemini supports JSON Schema via response_json_schema.
+                    response_json_schema=EpisodePackage.model_json_schema(),
                     temperature=0.8,
                 ),
             )
