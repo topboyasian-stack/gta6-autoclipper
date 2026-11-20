@@ -188,6 +188,7 @@ class MysteryPipelineTests(unittest.TestCase):
         first_code = dict(code_cells)[1]
         self.assertIn("Mystery & Sci-Fi Automation", first_code)
         self.assertIn("_prepare_mystery_clicked", first_code)
+        self.assertIn("_mystery_images_clicked", first_code)
         self.assertIn("_assemble_mystery_clicked", first_code)
         for index in (2, 3, 4):
             self.assertTrue(dict(code_cells)[index].startswith(
