@@ -123,6 +123,31 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("Maintain continuity", prompt)
         self.assertIn("Return only data matching the supplied structured schema", prompt)
 
+    def test_gemini_schema_uses_supported_raw_json_schema_keywords(self):
+        planner = load_numbered("01_planner.py", "test_planner_schema")
+        schema = planner._gemini_response_schema()
+
+        self.assertIn("properties", schema)
+        self.assertIn("scenes", schema["properties"])
+        self.assertIn("additionalProperties", schema)
+
+        unsupported = {"minLength", "maxLength", "pattern", "default", "additional_properties"}
+
+        def inspect(value):
+            if isinstance(value, dict):
+                self.assertTrue(unsupported.isdisjoint(value.keys()))
+                for child in value.values():
+                    inspect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    inspect(child)
+
+        inspect(schema)
+        # The API schema is permissive only for generation; Pydantic still validates
+        # scene counts, field lengths/patterns, continuity, and all required data afterward.
+        self.assertTrue(EpisodePackage.model_json_schema()["properties"]["scenes"]["items"]["$ref"].endswith("ScenePlan"))
+
+
     def test_flow_manifest_splits_scenes_into_credit_bounded_batches(self):
         flow = load_numbered("04_flow_pack.py", "test_flow_pack")
         result = flow.build_flow_pack(self.output, max_scenes_per_run=10)
