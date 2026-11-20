@@ -110,6 +110,8 @@ def _prepare(args) -> dict:
             voice=args.voice,
             whisper_model_name=args.whisper_model or WHISPER_MODEL,
             make_subtitles=not args.no_subtitles,
+            whisper_device=args.whisper_device,
+            whisper_device=args.whisper_device,
         )
     flow_pack = _load_numbered_stage("04_flow_pack.py", "mystery_flow_pack_stage")
     results["flow_pack"] = flow_pack.build_flow_pack(
