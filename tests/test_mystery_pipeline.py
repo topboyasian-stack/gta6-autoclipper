@@ -145,6 +145,20 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertEqual(len(plan), 28)
         self.assertFalse((self.output / "frames" / "scene_001.png").exists())
 
+    def test_audio_stage_caption_helpers_produce_valid_srt_timestamps(self):
+        audio = load_numbered("03_audio.py", "test_audio")
+        self.assertEqual(audio._srt_time(61.239), "00:01:01,239")
+        grouped = audio._group_cues([
+            {"start": 0.0, "end": 0.2, "text": "The"},
+            {"start": 0.21, "end": 0.5, "text": "signal"},
+            {"start": 0.51, "end": 0.9, "text": "arrived."},
+        ])
+        self.assertEqual(len(grouped), 1)
+        self.assertEqual(grouped[0]["text"], "The signal arrived.")
+        target = self.output / "captions" / "sample.srt"
+        audio._write_srt(grouped, target)
+        self.assertIn("00:00:00,000 --> 00:00:00,900", target.read_text(encoding="utf-8"))
+
     def test_flow_pack_refuses_empty_or_missing_episode_package(self):
         empty = self.output / "empty"
         empty.mkdir()
