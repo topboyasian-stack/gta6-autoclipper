@@ -45,6 +45,22 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
                 ast.parse(source)
 
 
+    def test_one_click_mystery_notebook_is_single_cell_and_logs_to_drive(self):
+        path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(notebook["nbformat"], 4)
+        code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
+        self.assertEqual(len(code_cells), 1)
+        source = "".join(code_cells[0]["source"])
+        ast.parse(source)
+        self.assertIn("SCENE_COUNT = 6", source)
+        self.assertIn('userdata.get("GEMINI_API_KEY")', source)
+        self.assertIn('"ALLOW_PAID_IMAGE_API": "false"', source)
+        self.assertIn("mystery_run.log", source)
+        self.assertIn("flow_upload_manifest.txt", source)
+        self.assertNotIn('"--allow-paid-images"', source)
+        self.assertIn('git", "-C", str(ROOT), "fetch"', source)
+
     def test_video_previews_use_supported_api_and_cannot_fail_production(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
         notebook = json.loads(path.read_text(encoding="utf-8"))
