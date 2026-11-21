@@ -1,4 +1,4 @@
-"""Stage 1: use Gemini Structured Outputs to create a validated episode.json."""
+"""Stage 1: ask Gemini for JSON and validate it locally as an EpisodePackage."""
 from __future__ import annotations
 
 import json
@@ -35,7 +35,49 @@ OUTPUT REQUIREMENTS:
 - Provide 3 distinct thumbnail alternatives A/B/C with readable short title_text.
 - Do not promise factual accuracy for fictional elements; mark any potentially sensitive material in content_notes.
 - Make the ending emotionally or intellectually satisfying while leaving one meaningful hook for the next episode.
-Return only data matching the supplied structured schema.
+- narration_script must be the scene narration combined in order; it will be rebuilt from scenes before saving.
+- Use simple, direct strings and arrays. Do not add commentary or Markdown fences outside the JSON object.
+
+JSON OUTPUT SHAPE — return one JSON object with these keys:
+{
+  "title": "string",
+  "logline": "string",
+  "topic": "string",
+  "target_audience": "string",
+  "synopsis": "string",
+  "visual_style": "string",
+  "narration_script": "string",
+  "characters": [
+    {
+      "character_id": "short stable id",
+      "name": "string",
+      "visual_description": "string",
+      "continuity_anchors": ["string", "string"],
+      "reference_image_prompt": "string"
+    }
+  ],
+  "scenes": [
+    {
+      "scene_number": 1,
+      "duration_seconds": 8,
+      "scene_title": "string",
+      "narration": "string",
+      "start_frame_prompt": "string",
+      "motion_prompt": "string",
+      "camera_motion": "string",
+      "sound_effects": ["string"],
+      "character_ids": ["character id"],
+      "continuity_notes": "string"
+    }
+  ],
+  "thumbnail_prompts": [
+    {"variant": "A", "concept": "string", "image_prompt": "string", "title_text": "string"},
+    {"variant": "B", "concept": "string", "image_prompt": "string", "title_text": "string"},
+    {"variant": "C", "concept": "string", "image_prompt": "string", "title_text": "string"}
+  ],
+  "content_notes": ["string"]
+}
+Use the exact property names above. Return valid JSON only.
 """.strip()
 
 
@@ -60,40 +102,6 @@ def _episode_from_response(response: Any) -> EpisodePackage:
             raise RuntimeError("Gemini did not return a JSON episode object.")
         return EpisodePackage.model_validate_json(text[start : end + 1])
 
-
-
-# Gemini Developer API's raw JSON Schema route accepts a documented subset of JSON Schema.
-# Keep those supported keywords on the wire; Pydantic still enforces all constraints locally.
-_GEMINI_SCHEMA_KEYS = {
-    "$id", "$defs", "$ref", "$anchor", "type", "format", "title", "description",
-    "enum", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum",
-    "anyOf", "oneOf", "properties", "additionalProperties", "required", "propertyOrdering",
-}
-
-
-def _gemini_response_schema() -> dict:
-    """Return an API-compatible JSON Schema; strict Pydantic validation remains downstream."""
-    source = EpisodePackage.model_json_schema()
-
-    def clean(node: Any) -> Any:
-        if not isinstance(node, dict):
-            return node
-        result = {}
-        for key, value in node.items():
-            if key not in _GEMINI_SCHEMA_KEYS:
-                continue
-            if key in {"$defs", "properties"} and isinstance(value, dict):
-                # Preserve definition/property names; clean each associated schema node.
-                result[key] = {name: clean(child) for name, child in value.items()}
-            elif key in {"items", "additionalProperties"} and isinstance(value, dict):
-                result[key] = clean(value)
-            elif key in {"anyOf", "oneOf", "prefixItems"} and isinstance(value, list):
-                result[key] = [clean(child) for child in value]
-            else:
-                result[key] = value
-        return result
-
-    return clean(source)
 
 
 def generate_episode(
@@ -140,10 +148,10 @@ def generate_episode(
             response = client.models.generate_content(
                 model=model,
                 contents=_make_prompt(topic, int(scene_count)),
+                # A compact in-prompt JSON shape avoids Gemini's schema-complexity limit.
+                # EpisodePackage performs the full strict validation locally afterwards.
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    # Use raw JSON Schema; Pydantic model validation follows the response.
-                    response_json_schema=_gemini_response_schema(),
                     temperature=0.8,
                 ),
             )
