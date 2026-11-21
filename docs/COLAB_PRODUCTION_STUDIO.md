@@ -6,6 +6,8 @@ There is **one maintained Google Colab notebook** for all production types. You 
 
 The notebook is maintained at `notebooks/GTA6_AutoClipper_Browser_Only.ipynb` on the repository's `main` branch. Colab opens that GitHub notebook directly. Its setup cell clones or refreshes the repository's `main` branch, so the supporting code comes from GitHub.
 
+For the current **first six-scene mystery/sci-fi test**, you can instead [open the one-click runner directly in Colab](https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/Mystery_SciFi_One_Click.ipynb). It has one code cell that syncs current code, checks the `GEMINI_API_KEY` Colab Secret, runs preparation, and logs progress to the same project folder in Drive. Use this shortcut only for the six-scene mystery test; it does not replace the Universal Studio for other productions.
+
 The former `GTA6_AutoClipper_GrowthReady.ipynb` is preserved under `archive/` for historical reference only. Do not use it for new productions.
 
 ## What each mode does
