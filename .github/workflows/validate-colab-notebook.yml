@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - notebooks/GTA6_AutoClipper_Browser_Only.ipynb
+      - notebooks/Mystery_SciFi_One_Click.ipynb
       - scripts/validate_colab_notebook.py
       - .github/workflows/validate-colab-notebook.yml
 
