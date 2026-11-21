@@ -145,13 +145,15 @@ def generate_audio_and_subtitles(
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise RuntimeError("FFmpeg and ffprobe are required to export WAV audio and validate durations.")
 
-    for scene in episode["scenes"]:
+    total_scenes = len(episode["scenes"])
+    for scene_index, scene in enumerate(episode["scenes"], start=1):
         text = (scene.get("narration") or "").strip()
         if not text:
             raise ValueError(f"Scene {scene.get('scene_number')} has no narration.")
         scene_id = f"scene_{int(scene['scene_number']):03d}"
         mp3_path = audio_dir / f"{scene_id}.mp3"
         wav_path = audio_dir / f"{scene_id}.wav"
+        print(f"Narration audio {scene_index}/{total_scenes}: {scene_id}", flush=True)
         if not mp3_path.is_file():
             _run_async_safely(_synthesize(text, mp3_path, selected_voice))
         if not wav_path.is_file() or wav_path.stat().st_mtime < mp3_path.stat().st_mtime:
@@ -197,10 +199,12 @@ def generate_audio_and_subtitles(
     if device not in {"cpu", "cuda"}:
         raise ValueError("whisper_device must be 'cpu' or 'cuda'.")
     compute_type = "float16" if device == "cuda" else "int8"
+    print(f"Whisper: loading {whisper_model_name} on {device} ({compute_type}); first use may download the model.", flush=True)
     model = WhisperModel(whisper_model_name, device=device, compute_type=compute_type)
     all_words: list[dict] = []
     offset = 0.0
-    for item in manifest:
+    for index, item in enumerate(manifest, start=1):
+        print(f"Whisper captions {index}/{len(manifest)}: scene_{int(item['scene_number']):03d}", flush=True)
         words, actual_duration = _word_cues(model, Path(item["audio_wav"]), offset)
         all_words.extend(words)
         offset += actual_duration + 0.4  # match the assembly pause inserted after each scene
