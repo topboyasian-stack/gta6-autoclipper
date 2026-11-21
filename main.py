@@ -92,17 +92,21 @@ def _prepare(args) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, Any] = {}
     if args.topic:
+        print("Stage 1/4: planning and validating the episode…", flush=True)
         results["planning"] = _plan(args.topic, output_dir, args.scene_count, args.force_plan)
     elif not (output_dir / "episode.json").is_file():
         raise ValueError("Supply --topic for a new episode, or point --output to a folder with episode.json.")
     else:
+        print("Stage 1/4: reusing the existing validated episode plan.", flush=True)
         results["planning"] = {"status": "reusing_existing_plan", "episode_json": str(output_dir / "episode.json")}
 
+    print("Stage 2/4: preparing image prompts only; paid image API is disabled unless explicitly requested.", flush=True)
     assets = _load_numbered_stage("02_assets.py", "mystery_assets_stage")
     results["assets"] = assets.generate_image_assets(
         output_dir, allow_paid=args.allow_paid_images, max_images=args.max_images
     )
     if not args.no_audio:
+        print("Stage 3/4: creating narration audio and word-timed captions. This may take a while on CPU.", flush=True)
         audio = _load_numbered_stage("03_audio.py", "mystery_audio_stage")
         from config import WHISPER_MODEL
         results["audio"] = audio.generate_audio_and_subtitles(
@@ -112,6 +116,9 @@ def _prepare(args) -> dict:
             make_subtitles=not args.no_subtitles,
             whisper_device=args.whisper_device,
         )
+    else:
+        print("Stage 3/4: narration and captions were skipped by request.", flush=True)
+    print("Stage 4/4: building the ordered Google Flow manifest…", flush=True)
     flow_pack = _load_numbered_stage("04_flow_pack.py", "mystery_flow_pack_stage")
     results["flow_pack"] = flow_pack.build_flow_pack(
         output_dir, max_scenes_per_run=args.max_scenes_per_flow_run
@@ -120,6 +127,7 @@ def _prepare(args) -> dict:
         "Review the episode and assets. Generate/import missing starting frames into frames/, "
         "then use the ordered Flow batch manifest. Export every clip as scene_NNN.mp4 into flow_clips/."
     )
+    print("Preparation stages completed. Final results follow.", flush=True)
     return results
 
 
