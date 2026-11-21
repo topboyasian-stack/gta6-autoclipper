@@ -107,9 +107,23 @@ def main():
     assert "Do not use this notebook for new production" in archive_intro, "Archived notebook needs a deprecation warning."
     assert COLAB_URL in archive_intro, "Archived notebook must redirect users to the canonical notebook."
 
+    one_click_path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
+    one_click = json.loads(one_click_path.read_text(encoding="utf-8"))
+    one_click_cells = [
+        (index, source_text(cell))
+        for index, cell in enumerate(one_click.get("cells", []))
+        if cell.get("cell_type") == "code"
+    ]
+    assert len(one_click_cells) == 1, "The one-click mystery runner must contain exactly one code cell."
+    compile(one_click_cells[0][1], f"{one_click_path}:cell-{one_click_cells[0][0]}", "exec")
+    assert "SCENE_COUNT = 6" in one_click_cells[0][1], "The one-click runner must default to six scenes."
+    assert "mystery_run.log" in one_click_cells[0][1], "The one-click runner must preserve its Drive log."
+    assert '"ALLOW_PAID_IMAGE_API": "false"' in one_click_cells[0][1], "Paid image generation must stay disabled."
+    assert '"--allow-paid-images"' not in one_click_cells[0][1], "The one-click runner must not opt in to paid image generation."
+
     print(
         f"PASS: canonical notebook is valid JSON; all {code_count} Python cells compile; "
-        "single-entry-point links and archive guard pass."
+        "single-entry-point links, archive guard, and one-cell mystery runner pass."
     )
 
 
