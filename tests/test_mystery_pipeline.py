@@ -121,31 +121,22 @@ class MysteryPipelineTests(unittest.TestCase):
         prompt = planner._make_prompt("A station receives a warning from tomorrow", 12)
         self.assertIn("exactly 12 scenes", prompt)
         self.assertIn("Maintain continuity", prompt)
-        self.assertIn("Return only data matching the supplied structured schema", prompt)
+        self.assertIn("Return valid JSON only", prompt)
 
-    def test_gemini_schema_uses_supported_raw_json_schema_keywords(self):
+    def test_gemini_planner_uses_compact_prompt_shape_not_complex_api_schema(self):
         planner = load_numbered("01_planner.py", "test_planner_schema")
-        schema = planner._gemini_response_schema()
+        prompt = planner._make_prompt("A station receives a warning from tomorrow", 6)
+        source = (ROOT / "pipeline" / "01_planner.py").read_text(encoding="utf-8")
 
-        self.assertIn("properties", schema)
-        self.assertIn("scenes", schema["properties"])
-        self.assertIn("additionalProperties", schema)
-
-        unsupported = {"minLength", "maxLength", "pattern", "default", "additional_properties"}
-
-        def inspect(value):
-            if isinstance(value, dict):
-                self.assertTrue(unsupported.isdisjoint(value.keys()))
-                for child in value.values():
-                    inspect(child)
-            elif isinstance(value, list):
-                for child in value:
-                    inspect(child)
-
-        inspect(schema)
-        # The API schema is permissive only for generation; Pydantic still validates
-        # scene counts, field lengths/patterns, continuity, and all required data afterward.
-        self.assertTrue(EpisodePackage.model_json_schema()["properties"]["scenes"]["items"]["$ref"].endswith("ScenePlan"))
+        self.assertIn('"thumbnail_prompts"', prompt)
+        self.assertIn('"characters"', prompt)
+        self.assertIn('"scenes"', prompt)
+        self.assertIn('"continuity_notes"', prompt)
+        self.assertIn("Return valid JSON only", prompt)
+        self.assertNotIn("response_json_schema", source)
+        self.assertNotIn("_gemini_response_schema", source)
+        # The local Pydantic model is still the authority for validating the generated package.
+        self.assertIn("EpisodePackage.model_validate_json", source)
 
 
     def test_flow_manifest_splits_scenes_into_credit_bounded_batches(self):
