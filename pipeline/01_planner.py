@@ -11,18 +11,18 @@ from pipeline.models import EpisodePackage
 
 
 def _make_prompt(topic: str, scene_count: int) -> str:
-    return f"""
+    prompt = """
 You are the story editor and cinematographer for an original, monetization-minded
 YouTube mystery/science-fiction channel. Create one self-contained episode that can
 also seed a continuing series. Use original characters, no copyrighted franchises,
 and no imitation of named creators. Tone: suspenseful, grounded, cinematic, intelligent.
 
 TOPIC / ONE-LINE PREMISE:
-{topic}
+<<TOPIC>>
 
 OUTPUT REQUIREMENTS:
-- Create exactly {scene_count} scenes, each planned for an approximately 8-second Flow clip.
-- The expected full cut is approximately {scene_count * 8} seconds before pacing adjustments.
+- Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately 8-second Flow clip.
+- The expected full cut is approximately <<EXPECTED_SECONDS>> seconds before pacing adjustments.
 - Write one continuous narrator voiceover, not character dialogue. Keep each scene's narration
   short enough to fit its visual beat; use pauses, tension and specific story progression.
 - narration_script must equal the scene narrations joined in order.
@@ -79,6 +79,11 @@ JSON OUTPUT SHAPE — return one JSON object with these keys:
 }}
 Use the exact property names above. Return valid JSON only.
 """.strip()
+    return (
+        prompt.replace("<<TOPIC>>", topic)
+        .replace("<<SCENE_COUNT>>", str(scene_count))
+        .replace("<<EXPECTED_SECONDS>>", str(scene_count * 8))
+    )
 
 
 def _episode_from_response(response: Any) -> EpisodePackage:
