@@ -195,10 +195,12 @@ class MysteryPipelineTests(unittest.TestCase):
             "google.genai": fake_genai,
             "google.genai.types": fake_types,
         }):
-            with patch.object(planner, "PLANNER_MODEL", "primary-model"), \\
-                 patch.object(planner, "FALLBACK_PLANNER_MODEL", "first-fallback"), \\
-                 patch.object(planner, "ADDITIONAL_FALLBACK_PLANNER_MODELS", ("third-fallback",)), \\
-                 patch.object(planner, "_episode_from_response", return_value=sample_episode(6)):
+            with (
+                patch.object(planner, "PLANNER_MODEL", "primary-model"),
+                patch.object(planner, "FALLBACK_PLANNER_MODEL", "first-fallback"),
+                patch.object(planner, "ADDITIONAL_FALLBACK_PLANNER_MODELS", ("third-fallback",)),
+                patch.object(planner, "_episode_from_response", return_value=sample_episode(6)),
+            ):
                 result = planner.generate_episode(
                     "An abandoned station receives a warning from tomorrow",
                     self.output / "planner-retry-test",
