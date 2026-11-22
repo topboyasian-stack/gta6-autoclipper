@@ -173,10 +173,8 @@ def generate_episode(
         try:
             print(
                 f"Gemini planner: requesting {scene_count} scenes from {model} "
-                (
-                    f"(request timeout: 180 seconds; up to {PLANNER_RETRY_ATTEMPTS} attempts "
-                    "for transient HTTP errors)…"
-                ),
+                f"(request timeout: 180 seconds; up to {PLANNER_RETRY_ATTEMPTS} attempts "
+                "for transient HTTP errors)…",
                 flush=True,
             )
             response = client.models.generate_content(
