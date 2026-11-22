@@ -6,7 +6,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-from config import FALLBACK_PLANNER_MODEL, GEMINI_API_KEY, PLANNER_MODEL
+from config import (
+    ADDITIONAL_FALLBACK_PLANNER_MODELS,
+    FALLBACK_PLANNER_MODEL,
+    GEMINI_API_KEY,
+    PLANNER_MODEL,
+    PLANNER_RETRY_ATTEMPTS,
+    PLANNER_RETRY_INITIAL_DELAY_SECONDS,
+    PLANNER_RETRY_MAX_DELAY_SECONDS,
+)
 from pipeline.models import EpisodePackage
 
 
@@ -131,15 +139,33 @@ def generate_episode(
     except ImportError as exc:
         raise RuntimeError("Install google-genai before running the planner stage.") from exc
 
-    # Bound each remote model request so Colab does not sit indefinitely without feedback.
+    # Gemini's SDK does not retry HTTP errors unless retry_options are configured.
+    # Keep retries bounded and let the SDK handle transient 408/429/5xx responses
+    # with exponential backoff before the planner moves to another model.
+    retry_options = types.HttpRetryOptions(
+        attempts=PLANNER_RETRY_ATTEMPTS,
+        initial_delay=PLANNER_RETRY_INITIAL_DELAY_SECONDS,
+        max_delay=PLANNER_RETRY_MAX_DELAY_SECONDS,
+        exp_base=2.0,
+        jitter=1.0,
+        http_status_codes=[408, 429, 500, 502, 503, 504],
+    )
     client = genai.Client(
         api_key=key,
-        http_options=types.HttpOptions(timeout=180000),
+        http_options=types.HttpOptions(
+            timeout=180000,
+            retry_options=retry_options,
+        ),
     )
     primary = primary_model or PLANNER_MODEL
-    candidates = [primary]
-    if FALLBACK_PLANNER_MODEL and FALLBACK_PLANNER_MODEL not in candidates:
-        candidates.append(FALLBACK_PLANNER_MODEL)
+    candidates = []
+    for model in (
+        primary,
+        FALLBACK_PLANNER_MODEL,
+        *ADDITIONAL_FALLBACK_PLANNER_MODELS,
+    ):
+        if model and model not in candidates:
+            candidates.append(model)
     last_error: Exception | None = None
     package: EpisodePackage | None = None
     used_model = None
@@ -147,7 +173,8 @@ def generate_episode(
         try:
             print(
                 f"Gemini planner: requesting {scene_count} scenes from {model} "
-                "(request timeout: 180 seconds)…",
+                f"(request timeout: 180 seconds; up to {PLANNER_RETRY_ATTEMPTS} attempts "
+                "for transient HTTP errors)…",
                 flush=True,
             )
             response = client.models.generate_content(
