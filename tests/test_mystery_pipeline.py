@@ -147,6 +147,79 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("EpisodePackage.model_validate_json", source)
 
 
+    def test_planner_configures_transient_retries_and_uses_extra_fallback_model(self):
+        import types as pytypes
+
+        planner = load_numbered("01_planner.py", "test_planner_retries")
+        calls = []
+        clients = []
+
+        class FakeRetryOptions:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeHttpOptions:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeGenerateContentConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                calls.append(model)
+                if model != "third-fallback":
+                    raise RuntimeError("simulated temporary model unavailability")
+                return object()
+
+        class FakeClient:
+            def __init__(self, api_key, http_options):
+                self.api_key = api_key
+                self.http_options = http_options
+                self.models = FakeModels()
+                clients.append(self)
+
+        fake_types = pytypes.ModuleType("google.genai.types")
+        fake_types.HttpRetryOptions = FakeRetryOptions
+        fake_types.HttpOptions = FakeHttpOptions
+        fake_types.GenerateContentConfig = FakeGenerateContentConfig
+        fake_genai = pytypes.ModuleType("google.genai")
+        fake_genai.Client = FakeClient
+        fake_genai.types = fake_types
+        fake_google = pytypes.ModuleType("google")
+        fake_google.genai = fake_genai
+
+        with patch.dict("sys.modules", {
+            "google": fake_google,
+            "google.genai": fake_genai,
+            "google.genai.types": fake_types,
+        }):
+            with patch.object(planner, "PLANNER_MODEL", "primary-model"), \\
+                 patch.object(planner, "FALLBACK_PLANNER_MODEL", "first-fallback"), \\
+                 patch.object(planner, "ADDITIONAL_FALLBACK_PLANNER_MODELS", ("third-fallback",)), \\
+                 patch.object(planner, "_episode_from_response", return_value=sample_episode(6)):
+                result = planner.generate_episode(
+                    "An abandoned station receives a warning from tomorrow",
+                    self.output / "planner-retry-test",
+                    scene_count=6,
+                    api_key="test-api-key-never-used",
+                )
+
+        self.assertEqual(calls, ["primary-model", "first-fallback", "third-fallback"])
+        self.assertEqual(result["planner_model"], "third-fallback")
+        self.assertTrue(Path(result["episode_json"]).is_file())
+        retry_options = clients[0].http_options.kwargs["retry_options"].kwargs
+        self.assertEqual(retry_options["attempts"], planner.PLANNER_RETRY_ATTEMPTS)
+        self.assertEqual(
+            retry_options["http_status_codes"],
+            [408, 429, 500, 502, 503, 504],
+        )
+        self.assertGreaterEqual(retry_options["initial_delay"], 1.0)
+        self.assertGreaterEqual(
+            retry_options["max_delay"], retry_options["initial_delay"]
+        )
+
     def test_flow_manifest_splits_scenes_into_credit_bounded_batches(self):
         flow = load_numbered("04_flow_pack.py", "test_flow_pack")
         result = flow.build_flow_pack(self.output, max_scenes_per_run=10)
