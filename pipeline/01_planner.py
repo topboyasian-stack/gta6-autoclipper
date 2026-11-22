@@ -39,7 +39,7 @@ OUTPUT REQUIREMENTS:
 - Use simple, direct strings and arrays. Do not add commentary or Markdown fences outside the JSON object.
 
 JSON OUTPUT SHAPE — return one JSON object with these keys:
-{{
+{
   "title": "string",
   "logline": "string",
   "topic": "string",
@@ -76,7 +76,7 @@ JSON OUTPUT SHAPE — return one JSON object with these keys:
     {"variant": "C", "concept": "string", "image_prompt": "string", "title_text": "string"}
   ],
   "content_notes": ["string"]
-}}
+}
 Use the exact property names above. Return valid JSON only.
 """.strip()
     return (
