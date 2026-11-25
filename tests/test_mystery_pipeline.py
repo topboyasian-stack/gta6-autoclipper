@@ -133,7 +133,7 @@ class MysteryPipelineTests(unittest.TestCase):
     def test_resuming_project_does_not_warn_for_a_small_topic_rewording(self):
         with patch.dict(os.environ, {"RESUME_PROJECT_ID": "saved-mystery-project"}):
             result = production_main._plan(
-                "A mysterious warning arrives before the incident",
+                "Mysterious warning arrives ahead of the incident",
                 self.output,
                 scene_count=24,
                 force=False,
