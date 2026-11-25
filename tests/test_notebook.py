@@ -85,8 +85,11 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
             for cell in notebook["cells"]
         )
         self.assertIn('"av==17.1.0"', source)
-        self.assertIn('"faster-whisper>=1.1,<2"', source)
-        self.assertLess(source.index('"av==17.1.0"'), source.index('"faster-whisper>=1.1,<2"'))
+        self.assertIn('"ctranslate2==4.9.1"', source)
+        self.assertIn('"faster-whisper==1.2.1"', source)
+        self.assertLess(source.index('"av==17.1.0"'), source.index('"faster-whisper==1.2.1"'))
+        self.assertIn('value="auto", description="Whisper device:"', source)
+        self.assertIn('env["RESUME_PROJECT_ID"] = project_widget.value.strip()', source)
         self.assertIn('av_major >= 18', source)
         self.assertIn('Audio decoder ready: PyAV', source)
 
