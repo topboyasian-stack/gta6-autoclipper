@@ -410,7 +410,7 @@ class MysteryPipelineTests(unittest.TestCase):
         captions = self.output / "captions" / "subtitles.srt"
         captions.parent.mkdir(parents=True, exist_ok=True)
         captions.write_text(
-            "1\\n00:00:00,100 --> 00:00:01,200\\nThe signal is repeating.\\n",
+            "1\n00:00:00,100 --> 00:00:01,200\nThe signal is repeating.\n",
             encoding="utf-8",
         )
         music = self.output / "licensed_test_music.wav"
