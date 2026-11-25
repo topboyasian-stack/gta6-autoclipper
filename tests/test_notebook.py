@@ -70,7 +70,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn('git", "-C", str(ROOT), "fetch"', source)
         self.assertIn("FLOW_VIDEO_MODEL = \"Veo 3.1 - Lite\"", source)
         self.assertIn("FLOW_CREDIT_CYCLE_ID", source)
-        self.assertIn("scripts/flow_automator.py", source)
+        self.assertIn('ROOT / "scripts" / "flow_automator.py"', source)
         self.assertIn("serve_kernel_port_as_iframe", source)
         self.assertIn("FLOW_RESERVE_PERCENT = 10", source)
         self.assertIn("FLOW_TARGET_VIDEOS = 15", source)
