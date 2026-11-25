@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -508,6 +509,19 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("missing_or_empty", source)
         self.assertNotIn('"--allow-paid-images"', source)
         self.assertIn('"--stage", "prepare"', source)
+        command_start = source.index("    command = [")
+        command_end = source.index("    ]", command_start)
+        command_flags = set(re.findall(r'"(--[a-z-]+)"', source[command_start:command_end]))
+        from main import _parser
+        parser_flags = {
+            option
+            for action in _parser()._actions
+            for option in action.option_strings
+        }
+        self.assertTrue(command_flags)
+        self.assertEqual(command_flags - parser_flags, set())
+        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(all("==" in line for line in requirements if line.strip()))
 
     def test_whisper_cuda_loader_falls_back_to_cpu_int8(self):
         audio = load_numbered("03_audio.py", "test_audio_cuda_fallback")
