@@ -47,7 +47,7 @@ def sample_episode(scene_count: int = 24) -> EpisodePackage:
                 "and finds evidence that the next warning has already been recorded."
             ),
             start_frame_prompt=(
-                "A wide 16:9 cinematic mystery image in an abandoned coastal radio station at night, "
+                "A vertical 9:16 cinematic mystery image in an abandoned coastal radio station at night, "
                 "rain on the windows, an old brass receiver, dramatic chiaroscuro and volumetric mist."
             ),
             motion_prompt=(
@@ -272,6 +272,50 @@ class MysteryPipelineTests(unittest.TestCase):
         assembly = load_numbered("05_assemble.py", "test_assemble")
         with self.assertRaisesRegex(FileNotFoundError, "required scene media is missing"):
             assembly.assemble_episode(self.output)
+
+    def test_assembly_success_exports_portrait_mp4_and_quality_report(self):
+        assembly = load_numbered("05_assemble.py", "test_assemble_success")
+        self.output.joinpath("flow_clips").mkdir(parents=True, exist_ok=True)
+        self.output.joinpath("audio").mkdir(parents=True, exist_ok=True)
+        (self.output / "episode.json").write_text(json.dumps({
+            "title": "Assembly smoke test",
+            "scenes": [{"scene_number": 1}, {"scene_number": 2}],
+        }), encoding="utf-8")
+
+        for number, color in ((1, "red"), (2, "blue")):
+            scene_id = f"scene_{number:03d}"
+            video = self.output / "flow_clips" / f"{scene_id}.mp4"
+            audio = self.output / "audio" / f"{scene_id}.wav"
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", f"color=c={color}:s=360x640:r=24:d=1",
+                "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                str(video),
+            ], check=True, capture_output=True, text=True)
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1",
+                "-ac", "1", "-c:a", "pcm_s16le", str(audio),
+            ], check=True, capture_output=True, text=True)
+
+        output_file = self.output / "final_youtube_video.mp4"
+        report = assembly.assemble_episode(self.output, output_file=output_file, burn_subtitles=False)
+        self.assertTrue(output_file.is_file())
+        self.assertGreater(output_file.stat().st_size, 1000)
+        self.assertEqual(report["status"], "rendered_needs_human_review")
+        self.assertEqual(report["resolution"], "1080x1920")
+        self.assertEqual(report["fps"], 30)
+        self.assertEqual(report["scene_count"], 2)
+        self.assertTrue(report["human_review_required"])
+
+        probe = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate",
+            "-of", "json", str(output_file),
+        ], check=True, capture_output=True, text=True)
+        stream = json.loads(probe.stdout)["streams"][0]
+        self.assertEqual((stream["width"], stream["height"]), (1080, 1920))
+        self.assertEqual(stream["r_frame_rate"], "30/1")
 
     def test_colab_notebook_code_cells_compile_and_new_mode_is_wired(self):
         notebook_path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
