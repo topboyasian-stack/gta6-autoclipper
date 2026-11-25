@@ -500,6 +500,18 @@ async def run(args):
     )
     LOG.info("Credit plan: %s", json.dumps(plan))
     missing_clips = [s for s in scenes if not (Path(s["output_clip"]).is_file() and Path(s["output_clip"]).stat().st_size > 50000)]
+    if not missing_clips:
+        report = {
+            "status": "complete", "episode_title": manifest.get("episode_title"),
+            "scene_count": len(scenes), "images_generated_this_run": 0,
+            "videos_generated_this_run": 0, "clips_complete": len(scenes), "clips_missing": [],
+            "credit_plan": plan, "credit_ledger": ledger.summary(),
+            "credit_ledger_path": str(args.credit_ledger), "browser_profile": str(args.profile_dir),
+            "diagnostics": str(out / "flow_diagnostics"),
+        }
+        write_json(out / "flow_automation_report.json", report)
+        LOG.info("All scene clips already exist; skipped browser and all generation credits.")
+        return report
     async with FlowBrowser(args, ledger) as browser:
         live_balance = await browser.balance()
         reserve = int(plan["monthly_reserve_credits"])
