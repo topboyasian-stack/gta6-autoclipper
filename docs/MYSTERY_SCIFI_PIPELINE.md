@@ -40,16 +40,41 @@ Google AI Pro's Google Flow credits and the Gemini Developer API are separate us
 
 The text planner defaults to `gemini-3.8-flash`, matching the model family already used by the repository's reusable production workflow, and attempts `gemini-3.5-flash-lite` if the primary model fails. Both are configurable with `MYSTERY_PLANNER_MODEL` and `MYSTERY_FALLBACK_MODEL`.
 
-## Google Flow stage
+## Google Flow automation and monthly credit plan
 
-The Flow worker deliberately prepares the prompt pack instead of silently automating the consumer website. It produces:
+The Mystery & Sci-Fi one-click Colab runner now includes a headed Playwright Flow worker. It runs in a visible browser inside the Colab session, stores its authenticated browser profile privately in Google Drive, and reuses that profile on later runs. The account owner signs in normally once and completes any Google security checks; the worker does not handle credentials or bypass Google authentication.
 
-- `flow_master_prompt.md` — global continuity and style rules plus scene prompts.
-- `flow_upload_manifest.json` — ordered scenes, image paths, motion prompts and expected clip paths.
-- `flow_upload_manifest.txt` — readable per-scene checklist.
-- Batches of no more than ten scenes by default (absolute cap: twelve), to limit accidental credit use.
+The worker is designed to automate:
+1. Generate recurring character-reference images and scene starting frames in Flow.
+2. Upload each starting frame and submit the matching motion/camera/continuity instructions.
+3. Wait for the new generation result, download it into `flow_clips/scene_NNN.mp4`, and validate the media file.
+4. Resume after interruption by skipping completed images and clips.
+5. Start FFmpeg assembly automatically once all clips exist.
 
-Use the chosen Flow model's current credit cost in the UI before generating a batch. Save exported video clips as `flow_clips/scene_001.mp4`, `flow_clips/scene_002.mp4`, and so on. The manifest identifies missing starting frames and clips. This leaves control of authentication, credit spend, and final generation clicks with the account owner rather than relying on brittle selectors or a remote Colab browser pretending to be the Chromebook's logged-in Chrome session.
+The Flow website is a consumer UI, not a stable public automation API. The browser selectors must therefore be tested against the live account UI. If a selector or credit-balance reader is not verified, the worker saves screenshots and visible-control diagnostics to `flow_diagnostics/` and stops rather than guessing or spending credits.
+
+### Credit budget
+
+The default production profile uses **Veo 3.1 Lite, 8 seconds, one output per request**. At the currently published Pro rate of 10 credits per scene, a six-scene episode uses about 60 video credits.
+
+| Monthly plan | Video credits | Budget position |
+| --- | ---: | --- |
+| 10 episodes | 600 | Within 1,000 monthly credits |
+| 15 episodes | 900 | Fits while retaining the 100-credit reserve |
+| 20 episodes | 1,200 | Stretch target; needs six 50-credit daily refreshes over separate 24-hour windows, while preserving the reserve |
+
+Google AI Pro includes 1,000 monthly Flow credits and a separate 50-credit daily refresh. Daily credits do not roll over. Flow image creation uses a separate daily image-generation allowance; it is not deducted from the monthly video-credit pool. These allowances and model rates can change, so check the live account and official [Flow credit guide](https://support.google.com/googleone/answer/16287445) before changing models.
+
+The worker maintains `flow_credit_ledger.json` in the Drive workspace. It checks the live balance before every video, enforces a 100-credit protected reserve, permits only one output per request, records submitted/unknown jobs as committed spend, and refuses automatic retries after an uncertain Generate click. Only a failure recorded before submission can be retried. It also keeps a daily image-generation ledger. The live balance check is authoritative; the ledger is an additional guard and audit trail.
+
+### Colab usage
+
+Open the one-click runner:
+`https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/Mystery_SciFi_One_Click.ipynb`
+
+Run its single code cell. On first use, sign in normally in the embedded browser. Keep the Colab cell running while images/videos render. The worker stores the persistent profile at `GTA6_AutoClipper/browser_profiles/google_flow`, credits at `GTA6_AutoClipper/flow_credit_ledger.json`, and scene downloads in the episode's `flow_clips/` folder. If Colab disconnects, run the same notebook again; finished outputs are skipped.
+
+The monthly ledger's `FLOW_CREDIT_CYCLE_ID` must stay unchanged within the same Google Flow monthly credit cycle. At the next monthly allowance reset, archive the previous ledger and set a new cycle ID so the budget never silently resets or double-counts an earlier cycle.
 
 ## Assembly
 
