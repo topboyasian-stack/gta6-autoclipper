@@ -46,6 +46,10 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
             "kind": "starting_frame",
             "key": name,
             "output": str(out / "frames" / name),
+            "reference_images": [
+                str(out / "character_references" / f"character_{character.character_id}.png")
+                for character in recurring_characters
+            ],
             "prompt": (
                 "Create one cinematic horizontal 16:9 starting frame for an original mystery/sci-fi film. "
                 + package.visual_style + " "
