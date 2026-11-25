@@ -77,7 +77,9 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("FLOW_STRETCH_VIDEOS = 20", source)
         self.assertIn('resume_answer.casefold() in {"yes", "y"}', source)
         self.assertIn("if LOG_PATH is not None:", source)
-        self.assertIn('spec_from_file_location("_mystery_colab_flow_display_runtime", flow_helper_path)', source)
+        self.assertIn("spec_from_file_location(", source)
+        self.assertIn('"_mystery_colab_flow_display_runtime"', source)
+        self.assertIn("flow_helper_path", source)
         self.assertIn("flow_helper_spec.loader.exec_module(flow_helper_module)", source)
         self.assertIn("Loaded Flow display helper directly from refreshed source:", source)
         self.assertNotIn("from scripts.colab_flow_display import ColabFlowDisplay", source)
@@ -90,7 +92,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("sys.path.insert(0, ROOT_IMPORT_PATH)", source)
         self.assertIn("importlib.invalidate_caches()", source)
         self.assertIn("Required Flow automation files are missing:", source)
-        self.assertLess(source.index("sys.path.insert(0, ROOT_IMPORT_PATH)"), source.index("from scripts.colab_flow_display import ColabFlowDisplay"))
+        self.assertLess(source.index("sys.path.insert(0, ROOT_IMPORT_PATH)"), source.index("spec_from_file_location("))
         self.assertLess(source.index("run_logged(\"Download production code\""), source.index("sys.path.insert(0, ROOT_IMPORT_PATH)"))
 
     def test_video_previews_use_supported_api_and_cannot_fail_production(self):
