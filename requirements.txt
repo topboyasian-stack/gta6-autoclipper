@@ -11,5 +11,6 @@ google-auth==2.49.0
 pydantic>=2.7,<3
 python-dotenv>=1.0,<2
 edge-tts>=7.0,<9
-faster-whisper>=1.0,<2
 av==17.1.0
+ctranslate2==4.9.1
+faster-whisper==1.2.1
