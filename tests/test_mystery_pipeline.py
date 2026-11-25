@@ -474,7 +474,7 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("--allow-paid-images", result.stdout)
         self.assertIn("--stage", result.stdout)
 
-    def test_one_click_colab_runner_targets_test_branch_and_allows_no_key_for_saved_plan(self):
+    def test_one_click_colab_runner_enforces_key_gpu_spend_guard_resume_warning_and_copy_ui(self):
         notebook_path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
         notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
         code_cells = [
@@ -484,12 +484,48 @@ class MysteryPipelineTests(unittest.TestCase):
         ]
         self.assertEqual(len(code_cells), 1)
         source = code_cells[0]
+        compile(source, str(notebook_path), "exec")
         self.assertIn('CODE_BRANCH = "improve/narrative-shorts-production"', source)
         self.assertIn('"origin", CODE_BRANCH', source)
-        self.assertIn('api_key = ""', source)
-        self.assertIn("without an API request", source)
-        self.assertNotIn("GEMINI_API_KEY is missing or inaccessible", source)
-        self.assertIn('"ALLOW_PAID_IMAGE_API": "false"', source)
+        self.assertIn('userdata.get("GEMINI_API_KEY")', source)
+        self.assertIn('os.environ.get("GEMINI_API_KEY"', source)
+        self.assertIn("GEMINI_API_KEY is missing", source)
+        self.assertNotIn('api_key = ""', source)
+        self.assertIn("torch.cuda.is_available()", source)
+        self.assertIn('"nvidia-smi", "-L"', source)
+        self.assertIn('WHISPER_COMPUTE_TYPE = "int8"', source)
+        self.assertIn('"MYSTERY_WHISPER_COMPUTE_TYPE": WHISPER_COMPUTE_TYPE', source)
+        self.assertIn('RESUME_PROJECT_ID', source)
+        self.assertIn("is overriding the current TOPIC", source)
+        self.assertIn('"IMAGE_PROVIDER": IMAGE_PROVIDER', source)
+        self.assertIn('"VIDEO_PROVIDER": VIDEO_PROVIDER', source)
+        self.assertIn('"ENABLE_PAID_VIDEO_API": ENABLE_PAID_VIDEO_API', source)
+        self.assertIn('"ALLOW_PAID_IMAGE_API": ALLOW_PAID_IMAGE_API', source)
+        self.assertIn('"-r", str(requirements_path)', source)
+        self.assertIn("display(HTML(markup))", source)
+        self.assertIn("flow_master_prompt.md", source)
+        self.assertIn("flow_upload_manifest.txt", source)
+        self.assertIn("missing_or_empty", source)
+        self.assertNotIn('"--allow-paid-images"', source)
+        self.assertIn('"--stage", "prepare"', source)
+
+    def test_whisper_cuda_loader_falls_back_to_cpu_int8(self):
+        audio = load_numbered("03_audio.py", "test_audio_cuda_fallback")
+        calls = []
+
+        class FakeWhisperModel:
+            def __init__(self, model_name, device, compute_type):
+                calls.append((device, compute_type))
+                if device == "cuda":
+                    raise RuntimeError("CUDA runtime libraries are unavailable")
+
+        model, device, compute_type = audio._load_whisper_model(
+            FakeWhisperModel, "base.en", "cuda", "float16"
+        )
+        self.assertIsInstance(model, FakeWhisperModel)
+        self.assertEqual(device, "cpu")
+        self.assertEqual(compute_type, "int8")
+        self.assertEqual(calls, [("cuda", "float16"), ("cpu", "int8")])
 
 
 if __name__ == "__main__":
