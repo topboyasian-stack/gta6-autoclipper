@@ -28,7 +28,7 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     for scene in package.scenes:
         name = f"scene_{int(scene.scene_number):03d}.png"
         plan.append({
-            "kind": "starting_frame", "key": name, "output": str(out / "frames" / name),
+            "kind": "starting_frame", "aspect_ratio": "9:16", "key": name, "output": str(out / "frames" / name),
             "prompt": (
                 "Create one cinematic vertical 9:16 starting frame for an original mystery/sci-fi YouTube Short. "
                 "Compose for a phone screen with a clear central focal point, strong foreground/background depth, "
@@ -39,7 +39,7 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     for character in package.characters:
         name = f"character_{character.character_id}.png"
         plan.append({
-            "kind": "character_reference", "key": name, "output": str(out / "character_references" / name),
+            "kind": "character_reference", "aspect_ratio": "16:9", "key": name, "output": str(out / "character_references" / name),
             "prompt": (
                 "Create a clean production-ready character reference sheet for consistent future animation. "
                 "Show a single original character with consistent face, hair, body proportions, wardrobe and "
@@ -50,7 +50,7 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     for thumb in package.thumbnail_prompts:
         name = f"thumbnail_{thumb.variant}.png"
         plan.append({
-            "kind": "thumbnail", "key": name, "output": str(out / "thumbnails" / name),
+            "kind": "thumbnail", "aspect_ratio": "16:9", "key": name, "output": str(out / "thumbnails" / name),
             "prompt": (
                 "Create a high-contrast 16:9 YouTube thumbnail for an original mystery/sci-fi episode. "
                 "Use one focal point, emotional tension and clear negative space for title overlay. "
@@ -130,8 +130,15 @@ def generate_image_assets(output_dir: Path, *, allow_paid: bool = False, max_ima
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             response = client.models.generate_content(
-                model=IMAGE_MODEL, contents=item["prompt"],
-                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
+                model=IMAGE_MODEL,
+                contents=item["prompt"],
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=item["aspect_ratio"],
+                        image_size="1K",
+                    ),
+                ),
             )
             if not _save_image_response(response, target):
                 raise RuntimeError("Gemini returned no image data.")
