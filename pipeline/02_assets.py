@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,13 @@ def _load_episode(output_dir: Path) -> EpisodePackage:
     return EpisodePackage.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def _portrait_scene_prompt(prompt: str) -> str:
+    """Adapt older saved landscape prompts without discarding their story details."""
+    prompt = re.sub(r"\\b16\\s*:\\s*9\\b", "9:16", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(r"\\bhorizontal\\b", "vertical", prompt, flags=re.IGNORECASE)
+    return prompt
+
+
 def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     out = Path(output_dir)
     plan = []
@@ -32,8 +40,9 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
             "prompt": (
                 "Create one cinematic vertical 9:16 starting frame for an original mystery/sci-fi YouTube Short. "
                 "Compose for a phone screen with a clear central focal point, strong foreground/background depth, "
-                "safe headroom and no important details at the extreme edges. " + package.visual_style + " "
-                + scene.start_frame_prompt + " No written text, subtitles, logos, watermarks or panels."
+                "safe headroom and no important details at the extreme edges. If the saved scene description contains old landscape-orientation wording, preserve its subject and story clues but recompose it vertically. "
+                + package.visual_style + " " + _portrait_scene_prompt(scene.start_frame_prompt)
+                + " No written text, subtitles, logos, watermarks or panels."
             ),
         })
     for character in package.characters:
