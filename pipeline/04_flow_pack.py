@@ -1,4 +1,4 @@
-"""Stage 4: prepare a manifest for Google Flow; browser automation is opt-in elsewhere."""
+"""Stage 4: prepare an auditable manifest for the automated Google Flow browser worker."""
 from __future__ import annotations
 
 import json
@@ -93,7 +93,7 @@ def build_flow_pack(output_dir: Path, max_scenes_per_run: int | None = None) -> 
     text_path = out / "flow_upload_manifest.txt"
     text_lines = [
         f"EPISODE: {package.title}",
-        f"BATCH CAP: {batch_cap} scenes per manual Flow run",
+        f"BATCH CAP: {batch_cap} scenes per automated Flow run",
         "Review the chosen Flow model's credits before pressing Generate.",
         "Do not regenerate an existing output clip unless its shot is intentionally being replaced.",
         "",
