@@ -22,6 +22,16 @@ class FlowAutomationError(RuntimeError):
     pass
 
 
+def retry_key(events: list[dict], field: str, base_key: str, retryable_status: str) -> str:
+    """Only retry recorded attempts known to have failed before a billable submission."""
+    previous = [e for e in events if e.get(field) == base_key or str(e.get(field, "")).startswith(base_key + ":retry-")]
+    if not previous:
+        return base_key
+    if any(e.get("status") != retryable_status for e in previous):
+        return base_key  # Ledger idempotency will block submitted/unknown/completed attempts.
+    return f"{base_key}:retry-{len(previous) + 1}"
+
+
 def read_json(path: Path, kind=dict):
     if not path.is_file() or not path.stat().st_size:
         raise FileNotFoundError(f"Required Flow input missing: {path}")
@@ -72,6 +82,7 @@ class FlowBrowser:
     def __init__(self, args, ledger):
         self.args, self.ledger = args, ledger
         self.pw = self.context = self.page = None
+        self.last_submission = False
         self.diag = Path(args.output) / "flow_diagnostics"
         self.diag.mkdir(parents=True, exist_ok=True)
 
@@ -341,6 +352,7 @@ class FlowBrowser:
         if not buttons or not await buttons[-1].is_enabled():
             await self.diagnostics("generate_unavailable")
             raise FlowAutomationError("Generate is not available; no request was submitted.")
+        self.last_submission = True  # Treat click timeouts as potentially billable; never auto-retry them.
         await buttons[-1].click()
         destination.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + self.args.render_timeout
@@ -370,6 +382,8 @@ class FlowBrowser:
             return False
         import hashlib
         key = f"{project_id}:{item['kind']}:{item['key']}:{hashlib.sha256(item['prompt'].encode()).hexdigest()[:16]}"
+        key = retry_key(self.ledger.data["image_events"], "image_key", key, "failed_no_quota_charge")
+        self.last_submission = False
         reserve = self.ledger.reserve_image_generation(
             image_key=key, output_path=str(path), model=self.args.image_model,
         )
@@ -393,7 +407,7 @@ class FlowBrowser:
             LOG.info("[IMAGE] %s saved", path.name)
             return True
         except Exception as exc:
-            self.ledger.finish_image_generation(key, status="unknown" if submitted else "failed_no_quota_charge", error=str(exc))
+            self.ledger.finish_image_generation(key, status="unknown" if self.last_submission else "failed_no_quota_charge", error=str(exc))
             await self.diagnostics("image_failed_" + path.stem)
             raise
 
@@ -414,6 +428,8 @@ class FlowBrowser:
         ])
         import hashlib
         key = f"{project_id}:{scene['scene_id']}:{hashlib.sha256(prompt.encode()).hexdigest()[:16]}:{self.args.video_model}:{seconds}"
+        key = retry_key(self.ledger.data["events"], "generation_key", key, "failed_no_charge")
+        self.last_submission = False
         # Prepare UI before reserving spend: any selector failure is safe to correct and retry.
         await self.mode("video")
         await self.model(self.args.video_model)
@@ -459,7 +475,7 @@ class FlowBrowser:
             LOG.info("[VIDEO] %s saved, %.2fs", path.name, duration)
             return True
         except Exception as exc:
-            self.ledger.finish_video_generation(key, status="unknown" if submitted else "failed_no_charge", error=str(exc))
+            self.ledger.finish_video_generation(key, status="unknown" if self.last_submission else "failed_no_charge", error=str(exc))
             await self.diagnostics("video_failed_" + scene["scene_id"])
             raise
 
