@@ -64,6 +64,13 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("flow_upload_manifest.txt", source)
         self.assertNotIn('"--allow-paid-images"', source)
         self.assertIn('git", "-C", str(ROOT), "fetch"', source)
+        self.assertIn("FLOW_VIDEO_MODEL = \"Veo 3.1 Lite\"", source)
+        self.assertIn("FLOW_CREDIT_CYCLE_ID", source)
+        self.assertIn("scripts/flow_automator.py", source)
+        self.assertIn("serve_kernel_port_as_iframe", source)
+        self.assertIn("FLOW_RESERVE_PERCENT = 10", source)
+        self.assertIn("FLOW_TARGET_VIDEOS = 15", source)
+        self.assertIn("FLOW_STRETCH_VIDEOS = 20", source)
 
     def test_video_previews_use_supported_api_and_cannot_fail_production(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
