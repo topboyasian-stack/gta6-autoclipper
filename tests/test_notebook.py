@@ -77,6 +77,12 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("FLOW_STRETCH_VIDEOS = 20", source)
         self.assertIn('resume_answer.casefold() in {"yes", "y"}', source)
         self.assertIn("if LOG_PATH is not None:", source)
+        self.assertIn("ROOT_IMPORT_PATH = str(ROOT.resolve())", source)
+        self.assertIn("sys.path.insert(0, ROOT_IMPORT_PATH)", source)
+        self.assertIn("importlib.invalidate_caches()", source)
+        self.assertIn("Required Flow automation files are missing:", source)
+        self.assertLess(source.index("sys.path.insert(0, ROOT_IMPORT_PATH)"), source.index("from scripts.colab_flow_display import ColabFlowDisplay"))
+        self.assertLess(source.index("run_logged(\"Download production code\""), source.index("sys.path.insert(0, ROOT_IMPORT_PATH)"))
 
     def test_video_previews_use_supported_api_and_cannot_fail_production(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
