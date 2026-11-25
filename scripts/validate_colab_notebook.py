@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 
@@ -20,7 +21,8 @@ def source_text(cell):
 
 
 def main():
-    notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+    with NOTEBOOK.open("r", encoding="utf-8") as notebook_file:
+        notebook = json.load(notebook_file)
     assert notebook.get("nbformat") == 4, "Expected a Jupyter notebook v4 file."
     cells = notebook.get("cells", [])
     assert len(cells) >= 5, "The production notebook is missing expected workflow cells."
@@ -30,7 +32,10 @@ def main():
         if cell.get("cell_type") != "code":
             continue
         code_count += 1
-        compile(source_text(cell), f"{NOTEBOOK}:cell-{index}", "exec")
+        cell_source = source_text(cell)
+        filename = f"{NOTEBOOK}:cell-{index}"
+        ast.parse(cell_source, filename=filename)
+        compile(cell_source, filename, "exec")
 
     all_source = "\n".join(source_text(cell) for cell in cells)
     required = [
@@ -108,14 +113,17 @@ def main():
     assert COLAB_URL in archive_intro, "Archived notebook must redirect users to the canonical notebook."
 
     one_click_path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
-    one_click = json.loads(one_click_path.read_text(encoding="utf-8"))
+    with one_click_path.open("r", encoding="utf-8") as notebook_file:
+        one_click = json.load(notebook_file)
     one_click_cells = [
         (index, source_text(cell))
         for index, cell in enumerate(one_click.get("cells", []))
         if cell.get("cell_type") == "code"
     ]
     assert len(one_click_cells) == 1, "The one-click mystery runner must contain exactly one code cell."
-    compile(one_click_cells[0][1], f"{one_click_path}:cell-{one_click_cells[0][0]}", "exec")
+    one_click_filename = f"{one_click_path}:cell-{one_click_cells[0][0]}"
+    ast.parse(one_click_cells[0][1], filename=one_click_filename)
+    compile(one_click_cells[0][1], one_click_filename, "exec")
     assert "SCENE_COUNT = 6" in one_click_cells[0][1], "The one-click runner must default to six scenes."
     assert "mystery_run.log" in one_click_cells[0][1], "The one-click runner must preserve its Drive log."
     assert '"ALLOW_PAID_IMAGE_API": "false"' in one_click_cells[0][1], "Paid image generation must stay disabled."
