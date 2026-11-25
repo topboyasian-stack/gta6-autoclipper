@@ -38,7 +38,7 @@ When the image plan is complete, review and correct every starting frame and cha
 
 Google AI Pro's Google Flow credits and the Gemini Developer API are separate usage/billing systems. The monthly Pro Flow allowance can be used in Flow, but it does not automatically cover images generated via `google-genai` using an API key. The image API is therefore disabled unless `--allow-paid-images` is explicitly supplied or the separate `ALLOW_PAID_IMAGE_API=true` environment setting is intentionally configured. Google model availability, rate limits, and prices change; check the current [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) before opting in.
 
-The text planner defaults to `gemini-3.8-flash`, matching the model family already used by the repository's reusable production workflow, and attempts `gemini-3.5-flash-lite` if the primary model fails. Both are configurable with `MYSTERY_PLANNER_MODEL` and `MYSTERY_FALLBACK_MODEL`.
+The text planner defaults to `gemini-3.8-flash` and falls back to `gemini-3.5-flash-lite`; both are configurable with `MYSTERY_PLANNER_MODEL` and `MYSTERY_FALLBACK_MODEL`. The optional Gemini Developer API image worker defaults to `gemini-nano-banana-2.1` via `MYSTERY_IMAGE_MODEL`. That image API path remains disabled unless explicitly opted into and can incur charges separate from Google AI Pro.
 
 ## Google Flow stage
 
@@ -47,7 +47,7 @@ The Flow worker deliberately prepares the prompt pack instead of silently automa
 - `flow_master_prompt.md` — global continuity and style rules plus scene prompts.
 - `flow_upload_manifest.json` — ordered scenes, image paths, motion prompts and expected clip paths.
 - `flow_upload_manifest.txt` — readable per-scene checklist.
-- Batches of no more than ten scenes by default (absolute cap: twelve), to limit accidental credit use.
+- Batches of no more than eight scenes by default (absolute cap: twelve); the command-line override remains available, to limit accidental credit use.
 
 Use the chosen Flow model's current credit cost in the UI before generating a batch. Save exported video clips as `flow_clips/scene_001.mp4`, `flow_clips/scene_002.mp4`, and so on. The manifest identifies missing starting frames and clips. This leaves control of authentication, credit spend, and final generation clicks with the account owner rather than relying on brittle selectors or a remote Colab browser pretending to be the Chromebook's logged-in Chrome session.
 
@@ -66,7 +66,7 @@ Input conventions:
 - Word-timed captions: `output/captions/subtitles.srt`
 - Optional licensed background music: `output/assets/music.mp3` (or pass `--music /path/to/licensed_music.mp3`)
 
-Assembly refuses to export if any expected scene clip or narration audio is missing. It normalizes video to 1920×1080 at 24 fps, uses moderate clip speed adjustment where possible, trims or freeze-pads unusual duration mismatches instead of making an extreme speed change, ducks background music under narration, and burns the SRT captions when present. Review `assembly_quality_report.json` and watch the complete master before publishing; a rendered file is not automatically marked approved or published.
+Assembly refuses to export if any expected scene clip or narration audio is missing. It normalizes video to portrait 1080×1920 at 30 fps, uses moderate clip speed adjustment where possible, trims or freeze-pads unusual duration mismatches instead of making an extreme speed change, ducks background music under narration, and burns the SRT captions when present. Review `assembly_quality_report.json` and watch the complete master before publishing; a rendered file is not automatically marked approved or published.
 
 ## Commands
 
