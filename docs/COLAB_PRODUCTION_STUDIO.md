@@ -191,3 +191,12 @@ The first season is outlined as eight connected episodes. Episode 1 is the only 
 - The episode renderer checks clip count/order, audio file timing, output codecs, dimensions and duration. It does not automatically judge acting quality, facial continuity, dramatic clarity or audience appeal.
 - Character designs, voice assets, script, Flow clips and music each need suitable rights for the intended commercial use. Keep model cards and music licence records with each export.
 - The series is in pre-production until reference sheets and voice casting are approved and an end-to-end pilot passes human review. There is no monetization guarantee.
+
+
+## Resume safety and Whisper hardware selection
+
+When a Mystery & Sci-Fi project is resumed, the saved `episode.json` remains the source of truth. Before reusing it, the CLI compares its saved topic with the newly entered `TOPIC`. If the topics differ substantially, the run log displays a warning identifying `RESUME_PROJECT_ID`, the saved topic and the requested topic. It does not silently replace the saved plan. To intentionally start over inside that project, enable **Replace an existing episode plan after backing it up**; the existing plan is copied to a timestamped backup before a new plan is generated. Otherwise, choose a new Project ID for a separate episode.
+
+Whisper now defaults to **Auto-detect GPU/CPU**. When CTranslate2 reports a usable CUDA device, the studio selects CUDA with `float16`; otherwise it selects CPU with `int8`. If CUDA is detected but the GPU model cannot initialize, Auto mode records a warning and falls back to CPU. CPU and explicit CUDA remain selectable. The same runtime selector is used by the Mystery & Sci-Fi and Engineering caption workflows.
+
+For repeatable Colab installations, the speech stack is pinned together: `faster-whisper==1.2.1`, `ctranslate2==4.9.1` and `av==17.1.0`. The caption QA cache version is advanced so earlier CPU-only results are not incorrectly treated as results from the updated pipeline.

@@ -265,6 +265,8 @@ class ReusableProductionTests(unittest.TestCase):
 
             self.assertEqual(Path(model.model_path), model_dir)
             hub.snapshot_download.assert_not_called()
+            self.assertEqual(model._production_whisper_device, "cpu")
+            self.assertEqual(model._production_whisper_compute_type, "int8")
 
     def test_gemini_503_retries_then_uses_lighter_stable_model(self):
         from unittest.mock import Mock

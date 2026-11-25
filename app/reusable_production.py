@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -19,7 +20,9 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
-PIPELINE_VERSION = 5
+from whisper_runtime import load_whisper_model, resolve_whisper_runtime
+
+PIPELINE_VERSION = 6
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
@@ -1441,7 +1444,12 @@ def _build_srt_from_words(words: list[dict], max_words: int = 5, max_chars: int 
 
 
 
-def _load_drive_safe_whisper_model(model_size: str, model_cache: Path, model_class):
+def _load_drive_safe_whisper_model(
+    model_size: str,
+    model_cache: Path,
+    model_class,
+    device_preference: str | None = None,
+):
     """Load Whisper from real files in Drive, avoiding Hugging Face symlink caches.
 
     Hugging Face's default cache creates snapshot symlinks to blob files. Google Drive
@@ -1519,7 +1527,21 @@ def _load_drive_safe_whisper_model(model_size: str, model_cache: Path, model_cla
                 "was removed; check the Hugging Face download connection and rerun captions."
             )
 
-    return model_class(str(model_dir), device="cpu", compute_type="int8")
+    model, device, compute_type = load_whisper_model(
+        model_class, str(model_dir), device_preference=device_preference
+    )
+    # Preserve the actual selected runtime so the caption QA record can explain
+    # whether this render used CUDA or the CPU fallback.
+    try:
+        model._production_whisper_device = device
+        model._production_whisper_compute_type = compute_type
+    except Exception:
+        pass
+    print(
+        f"Whisper ready: {model_size} on {device} ({compute_type}).",
+        flush=True,
+    )
+    return model
 
 
 def create_automatic_episode_captions(
@@ -1527,12 +1549,18 @@ def create_automatic_episode_captions(
     workspace: Path,
     model_size: str = "base.en",
     minimum_similarity: float = 0.90,
+    device_preference: str | None = None,
 ) -> dict:
     """Create word-timed SRT captions from the generated voice and automatically QA them."""
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
         raise RuntimeError("faster-whisper is not installed. Run the engineering setup cell again.") from exc
+
+    device_preference = (
+        device_preference or os.getenv("WHISPER_DEVICE", "auto") or "auto"
+    ).strip().lower()
+    desired_device, _ = resolve_whisper_runtime(device_preference)
 
     project_dir = Path(project_dir)
     brief = json.loads((project_dir / "episode_brief.json").read_text(encoding="utf-8"))
@@ -1552,6 +1580,8 @@ def create_automatic_episode_captions(
         old_qc.get("script_sha256") == script_hash
         and old_qc.get("audio_sha256") == audio_hash
         and old_qc.get("model_size") == model_size
+        and old_qc.get("device_preference") == device_preference
+        and old_qc.get("whisper_device") == desired_device
         and old_qc.get("pipeline_version") == PIPELINE_VERSION
         and srt_path.exists()
     ):
@@ -1559,7 +1589,9 @@ def create_automatic_episode_captions(
 
     model_cache = Path(workspace) / "assets" / "whisper_models"
     model_cache.mkdir(parents=True, exist_ok=True)
-    whisper = _load_drive_safe_whisper_model(model_size, model_cache, WhisperModel)
+    whisper = _load_drive_safe_whisper_model(
+        model_size, model_cache, WhisperModel, device_preference=device_preference
+    )
     segments, info = whisper.transcribe(
         str(audio_path),
         language="en",
@@ -1618,6 +1650,9 @@ def create_automatic_episode_captions(
     details = {
         "status": "AUTO_VERIFIED" if auto_verified else "REVIEW_REQUIRED",
         "model_size": model_size,
+        "device_preference": device_preference,
+        "whisper_device": getattr(whisper, "_production_whisper_device", desired_device),
+        "whisper_compute_type": getattr(whisper, "_production_whisper_compute_type", None),
         "pipeline_version": PIPELINE_VERSION,
         "language": getattr(info, "language", "en"),
         "word_count_expected": len(expected),

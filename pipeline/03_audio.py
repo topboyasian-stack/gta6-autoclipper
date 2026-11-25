@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from config import NARRATOR_VOICE, WHISPER_MODEL
+from whisper_runtime import load_whisper_model
 
 
 def _run(cmd: list[str]) -> None:
@@ -195,12 +196,20 @@ def generate_audio_and_subtitles(
     except ImportError as exc:
         raise RuntimeError("faster-whisper is required for word-timed captions. Install project requirements.") from exc
 
-    device = (whisper_device or os.getenv("MYSTERY_WHISPER_DEVICE", "cpu")).strip().lower()
-    if device not in {"cpu", "cuda"}:
-        raise ValueError("whisper_device must be 'cpu' or 'cuda'.")
-    compute_type = "float16" if device == "cuda" else "int8"
-    print(f"Whisper: loading {whisper_model_name} on {device} ({compute_type}); first use may download the model.", flush=True)
-    model = WhisperModel(whisper_model_name, device=device, compute_type=compute_type)
+    preference = (
+        whisper_device
+        or os.getenv("MYSTERY_WHISPER_DEVICE")
+        or os.getenv("WHISPER_DEVICE")
+        or "auto"
+    ).strip().lower()
+    model, device, compute_type = load_whisper_model(
+        WhisperModel, whisper_model_name, device_preference=preference
+    )
+    print(
+        f"Whisper ready: {whisper_model_name} on {device} ({compute_type}); "
+        "first use may download the model.",
+        flush=True,
+    )
     all_words: list[dict] = []
     offset = 0.0
     for index, item in enumerate(manifest, start=1):
@@ -217,4 +226,6 @@ def generate_audio_and_subtitles(
     result["caption_count"] = len(grouped)
     result["subtitle_model"] = whisper_model_name
     result["subtitle_device"] = device
+    result["subtitle_compute_type"] = compute_type
+    result["subtitle_device_preference"] = preference
     return result

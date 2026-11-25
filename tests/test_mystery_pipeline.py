@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline.models import CharacterSheet, EpisodePackage, ScenePlan, ThumbnailPrompt
+import main as production_main
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -115,6 +116,30 @@ class MysteryPipelineTests(unittest.TestCase):
         broken["scenes"][1]["scene_number"] = 9
         with self.assertRaises(Exception):
             EpisodePackage.model_validate(broken)
+
+    def test_resuming_project_warns_when_saved_topic_overrides_a_different_topic(self):
+        with patch.dict(os.environ, {"RESUME_PROJECT_ID": "saved-mystery-project"}):
+            result = production_main._plan(
+                "A city redesigns its flood defenses using new coastal engineering",
+                self.output,
+                scene_count=24,
+                force=False,
+            )
+        self.assertEqual(result["status"], "reused_existing_plan")
+        self.assertEqual(result["topic_used"], self.package.topic)
+        self.assertIn("WARNING: RESUME_PROJECT_ID='saved-mystery-project' is overriding", result["warning"])
+        self.assertIn("The saved episode plan will be reused unchanged", result["warning"])
+
+    def test_resuming_project_does_not_warn_for_a_small_topic_rewording(self):
+        with patch.dict(os.environ, {"RESUME_PROJECT_ID": "saved-mystery-project"}):
+            result = production_main._plan(
+                "Mysterious warning arrives ahead of the incident",
+                self.output,
+                scene_count=24,
+                force=False,
+            )
+        self.assertIsNone(result["warning"])
+        self.assertEqual(result["topic_used"], self.package.topic)
 
     def test_planner_prompt_calls_for_continuity_and_requested_scene_count(self):
         planner = load_numbered("01_planner.py", "test_planner")
@@ -303,6 +328,8 @@ class MysteryPipelineTests(unittest.TestCase):
         )
         self.assertIn("--allow-paid-images", result.stdout)
         self.assertIn("--stage", result.stdout)
+        self.assertIn("--whisper-device", result.stdout)
+        self.assertIn("auto", result.stdout)
 
 
 if __name__ == "__main__":
