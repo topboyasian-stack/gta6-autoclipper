@@ -30,7 +30,7 @@ Generate one bounded image API batch only after checking the pricing on the actu
 python main.py --stage assets --output output --allow-paid-images --max-images 10
 ```
 
-The image worker never generates more than ten images in a single run. It skips existing assets, so rerunning it continues with missing frames, character references, and thumbnails. Repeat only after reviewing the remaining plan. The default image model is configurable through `MYSTERY_IMAGE_MODEL`.
+The image worker never generates more than ten images in a single run. It skips existing assets, so rerunning it continues with missing frames, character references, and thumbnails. It requests 9:16 source images for scene frames and 16:9 images for character references and thumbnails, then normalizes the delivery assets to their target sizes. Repeat only after reviewing the remaining plan. The default image model is configurable through `MYSTERY_IMAGE_MODEL`.
 
 When the image plan is complete, review and correct every starting frame and character reference before production. If you are not authorizing separate Gemini API image charges, use the prompts with a visual-generation workflow already included in your plan/subscription, then save the resulting assets in the paths recorded by the manifest.
 
