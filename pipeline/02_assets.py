@@ -25,8 +25,8 @@ def _load_episode(output_dir: Path) -> EpisodePackage:
 
 def _portrait_scene_prompt(prompt: str) -> str:
     """Adapt older saved landscape prompts without discarding their story details."""
-    prompt = re.sub(r"\\b16\\s*:\\s*9\\b", "9:16", prompt, flags=re.IGNORECASE)
-    prompt = re.sub(r"\\bhorizontal\\b", "vertical", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(r"\b16\s*:\s*9\b", "9:16", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(r"\bhorizontal\b", "vertical", prompt, flags=re.IGNORECASE)
     return prompt
 
 
