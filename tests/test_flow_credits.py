@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from scripts.flow_credits import FlowCreditLedger, episode_credit_plan, video_generation_cost
+from scripts.flow_automator import retry_key
 
 
 class FlowCreditTests(unittest.TestCase):
@@ -78,6 +79,14 @@ class FlowCreditTests(unittest.TestCase):
             FlowCreditLedger(path, cycle_id="cycle-a")
             with self.assertRaises(RuntimeError):
                 FlowCreditLedger(path, cycle_id="cycle-b")
+
+    def test_only_confirmed_no_charge_attempts_are_retryable(self):
+        events = [
+            {"generation_key": "stable", "status": "failed_no_charge"},
+        ]
+        self.assertEqual(retry_key(events, "generation_key", "stable", "failed_no_charge"), "stable:retry-2")
+        events.append({"generation_key": "stable:retry-2", "status": "unknown"})
+        self.assertEqual(retry_key(events, "generation_key", "stable", "failed_no_charge"), "stable")
 
     def test_image_quota_is_separate_from_video_credits(self):
         with tempfile.TemporaryDirectory() as tmp:
