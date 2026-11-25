@@ -1,19 +1,18 @@
-"""Stage 2: build image prompts and optionally generate images through Gemini.
+"""Stage 2: build Shorts-first image prompts and optionally generate via Gemini API.
 
-Image API calls are disabled by default because Google AI Pro subscription credits do
-not cover Gemini Developer API billing. Use --allow-paid-images only after reviewing
-the current API pricing for the key being used.
+Paid API calls remain disabled by default because Google AI Pro Flow credits do not
+cover Gemini Developer API billing.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageOps
-
-from config import ALLOW_PAID_IMAGE_API, IMAGE_MODEL, MAX_IMAGES_PER_API_RUN
+from config import ALLOW_PAID_IMAGE_API, IMAGE_MODEL, MAX_IMAGES_PER_API_RUN, OUTPUT_SIZE
 from pipeline.models import EpisodePackage
 
 
@@ -24,58 +23,59 @@ def _load_episode(output_dir: Path) -> EpisodePackage:
     return EpisodePackage.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def _portrait_scene_prompt(prompt: str) -> str:
+    """Adapt older saved landscape prompts without discarding their story details."""
+    prompt = re.sub(r"\b16\s*:\s*9\b", "9:16", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(r"\bhorizontal\b", "vertical", prompt, flags=re.IGNORECASE)
+    return prompt
+
+
 def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     out = Path(output_dir)
     plan = []
     for scene in package.scenes:
         name = f"scene_{int(scene.scene_number):03d}.png"
         plan.append({
-            "kind": "starting_frame",
-            "key": name,
-            "output": str(out / "frames" / name),
+            "kind": "starting_frame", "aspect_ratio": "9:16", "key": name, "output": str(out / "frames" / name),
             "prompt": (
-                "Create one cinematic horizontal 16:9 starting frame for an original mystery/sci-fi film. "
-                + package.visual_style + " "
-                + scene.start_frame_prompt
+                "Create one cinematic vertical 9:16 starting frame for an original mystery/sci-fi YouTube Short. "
+                "Compose for a phone screen with a clear central focal point, strong foreground/background depth, "
+                "safe headroom and no important details at the extreme edges. If the saved scene description contains old landscape-orientation wording, preserve its subject and story clues but recompose it vertically. "
+                + package.visual_style + " " + _portrait_scene_prompt(scene.start_frame_prompt)
                 + " No written text, subtitles, logos, watermarks or panels."
             ),
         })
     for character in package.characters:
         name = f"character_{character.character_id}.png"
         plan.append({
-            "kind": "character_reference",
-            "key": name,
-            "output": str(out / "character_references" / name),
+            "kind": "character_reference", "aspect_ratio": "16:9", "key": name, "output": str(out / "character_references" / name),
             "prompt": (
-                "Create a clean, production-ready character reference sheet for consistent future animation. "
+                "Create a clean production-ready character reference sheet for consistent future animation. "
                 "Show a single original character with consistent face, hair, body proportions, wardrobe and "
-                "distinctive props in clear front, three-quarter and profile views on a neutral uncluttered "
-                "background. " + character.reference_image_prompt + " No labels or written text."
+                "distinctive props in clear front, three-quarter and profile views on a neutral background. "
+                + character.reference_image_prompt + " No labels or written text."
             ),
         })
     for thumb in package.thumbnail_prompts:
         name = f"thumbnail_{thumb.variant}.png"
         plan.append({
-            "kind": "thumbnail",
-            "key": name,
-            "output": str(out / "thumbnails" / name),
+            "kind": "thumbnail", "aspect_ratio": "16:9", "key": name, "output": str(out / "thumbnails" / name),
             "prompt": (
                 "Create a high-contrast 16:9 YouTube thumbnail for an original mystery/sci-fi episode. "
-                "Make one readable focal point, strong silhouette, emotional tension and clear negative space "
-                "for a title overlay. Do not render words or logos into the image. "
-                + thumb.image_prompt
+                "Use one focal point, emotional tension and clear negative space for title overlay. "
+                "Do not render words or logos into the image. " + thumb.image_prompt
             ),
         })
     return plan
 
 
-def _normalize_16_9(path: Path, kind: str) -> None:
+def _normalize_image(path: Path, kind: str) -> None:
     if kind == "character_reference":
         return
+    size = (1920, 1080) if kind == "thumbnail" else OUTPUT_SIZE
     with Image.open(path) as im:
-        im = im.convert("RGB")
-        result = ImageOps.fit(im, (1920, 1080), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-        result.save(path, format="PNG", optimize=True)
+        im = ImageOps.fit(im.convert("RGB"), size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        im.save(path, format="PNG", optimize=True)
 
 
 def _save_image_response(response: Any, destination: Path) -> bool:
@@ -83,7 +83,6 @@ def _save_image_response(response: Any, destination: Path) -> bool:
     for candidate in getattr(response, "candidates", []) or []:
         content = getattr(candidate, "content", None)
         for part in (getattr(content, "parts", []) or []):
-            image_obj = None
             try:
                 image_obj = part.as_image()
             except Exception:
@@ -95,18 +94,12 @@ def _save_image_response(response: Any, destination: Path) -> bool:
             data = getattr(inline, "data", None) if inline is not None else None
             if data:
                 import base64
-                raw = base64.b64decode(data) if isinstance(data, str) else data
-                destination.write_bytes(raw)
+                destination.write_bytes(base64.b64decode(data) if isinstance(data, str) else data)
                 return True
     return False
 
 
-def generate_image_assets(
-    output_dir: Path,
-    *,
-    allow_paid: bool = False,
-    max_images: int | None = None,
-) -> dict:
+def generate_image_assets(output_dir: Path, *, allow_paid: bool = False, max_images: int | None = None) -> dict:
     """Generate at most one bounded image batch; repeated runs resume existing assets."""
     out = Path(output_dir)
     package = _load_episode(out)
@@ -115,37 +108,18 @@ def generate_image_assets(
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     markdown_path = out / "assets_generation_plan.md"
     markdown_lines = [
-        "# Image generation plan",
-        "",
-        f"Episode: {package.title}",
-        "",
-        "Image API generation is optional. If you are using Google AI Pro only, review the prompts and use an available in-plan image workflow rather than assuming Gemini Developer API image generation is included.",
-        "",
+        "# Image generation plan", "", f"Episode: {package.title}", "",
+        "Image API generation is optional. If using Google AI Pro only, use an image workflow included in your plan rather than assuming Gemini Developer API generation is covered.", "",
     ]
     for item in plan:
-        markdown_lines.extend([
-            f"## {item['kind'].replace('_', ' ').title()} — {item['key']}",
-            "",
-            f"Output path: {item['output']}",
-            "",
-            item["prompt"],
-            "",
-        ])
+        markdown_lines.extend([f"## {item['kind'].replace('_', ' ').title()} — {item['key']}", "",
+                               f"Output path: {item['output']}", "", item["prompt"], ""])
     markdown_path.write_text("\n".join(markdown_lines).rstrip() + "\n", encoding="utf-8")
     missing = [item for item in plan if not Path(item["output"]).is_file()]
     if not (allow_paid or ALLOW_PAID_IMAGE_API):
-        return {
-            "status": "prompt-only",
-            "generated": 0,
-            "pending": len(missing),
-            "plan": str(plan_path),
-            "plan_markdown": str(markdown_path),
-            "message": (
-                "Image API generation was skipped. Gemini API image calls may be billed separately from "
-                "Google AI Pro. Use this plan for an authorized image workflow, or explicitly opt in after "
-                "checking the current API pricing."
-            ),
-        }
+        return {"status": "prompt-only", "generated": 0, "pending": len(missing), "plan": str(plan_path),
+                "plan_markdown": str(markdown_path),
+                "message": "Image API generation was skipped. Gemini API image calls may be billed separately from Google AI Pro."}
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if len(key) < 10:
         raise ValueError("GEMINI_API_KEY is missing.")
@@ -158,10 +132,8 @@ def generate_image_assets(
         from google.genai import types
     except ImportError as exc:
         raise RuntimeError("Install google-genai to generate image assets.") from exc
-
     client = genai.Client(api_key=key)
-    generated = []
-    failures = []
+    generated, failures = [], []
     for item in batch:
         target = Path(item["output"])
         try:
@@ -169,30 +141,26 @@ def generate_image_assets(
             response = client.models.generate_content(
                 model=IMAGE_MODEL,
                 contents=item["prompt"],
-                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=item["aspect_ratio"],
+                        image_size="1K",
+                    ),
+                ),
             )
             if not _save_image_response(response, target):
                 raise RuntimeError("Gemini returned no image data.")
-            _normalize_16_9(target, item["kind"])
+            _normalize_image(target, item["kind"])
             generated.append(str(target))
         except Exception as exc:
             failures.append({"key": item["key"], "error": f"{type(exc).__name__}: {exc}"})
             if target.exists() and target.stat().st_size == 0:
                 target.unlink()
     remaining = sum(not Path(item["output"]).is_file() for item in plan)
-    result = {
-        "status": "partial" if remaining else "complete",
-        "generated": len(generated),
-        "files": generated,
-        "pending": remaining,
-        "batch_limit": limit,
-        "plan": str(plan_path),
-        "plan_markdown": str(markdown_path),
-        "failures": failures,
-        "model": IMAGE_MODEL,
-        "warning": "Check API billing and inspect assets before using them in production.",
-    }
-    (out / "assets_generation_report.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    result = {"status": "partial" if remaining else "complete", "generated": len(generated), "files": generated,
+              "pending": remaining, "batch_limit": limit, "plan": str(plan_path), "plan_markdown": str(markdown_path),
+              "failures": failures, "model": IMAGE_MODEL,
+              "warning": "Check API billing and inspect assets before using them in production."}
+    (out / "assets_generation_report.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return result

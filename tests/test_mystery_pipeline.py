@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -47,7 +48,7 @@ def sample_episode(scene_count: int = 24) -> EpisodePackage:
                 "and finds evidence that the next warning has already been recorded."
             ),
             start_frame_prompt=(
-                "A wide 16:9 cinematic mystery image in an abandoned coastal radio station at night, "
+                "A vertical 9:16 cinematic mystery image in an abandoned coastal radio station at night, "
                 "rain on the windows, an old brass receiver, dramatic chiaroscuro and volumetric mist."
             ),
             motion_prompt=(
@@ -233,6 +234,81 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertTrue(Path(result["master_prompt"]).is_file())
         self.assertTrue(Path(result["text_manifest"]).is_file())
 
+    def test_asset_plan_assigns_expected_aspect_ratios(self):
+        assets = load_numbered("02_assets.py", "test_asset_aspect_plan")
+        # Older saved plans used landscape prompt wording; the image stage must adapt it on reuse.
+        self.package.scenes[0].start_frame_prompt = (
+            "A wide horizontal 16:9 starting frame in an abandoned coastal radio station, "
+            "with a glowing brass receiver and rain against the window."
+        )
+        plan = assets._prompt_plan(self.package, self.output)
+        starts = [item for item in plan if item["kind"] == "starting_frame"]
+        references = [item for item in plan if item["kind"] == "character_reference"]
+        thumbnails = [item for item in plan if item["kind"] == "thumbnail"]
+        self.assertEqual(len(starts), len(self.package.scenes))
+        self.assertTrue(all(item["aspect_ratio"] == "9:16" for item in starts))
+        self.assertIn("vertical 9:16", starts[0]["prompt"])
+        self.assertNotIn("horizontal", starts[0]["prompt"].lower())
+        self.assertNotIn("16:9", starts[0]["prompt"])
+        self.assertTrue(all(item["aspect_ratio"] == "16:9" for item in references + thumbnails))
+
+    def test_paid_image_request_sets_aspect_ratio_without_calling_real_api(self):
+        import types as pytypes
+        from PIL import Image
+
+        assets = load_numbered("02_assets.py", "test_image_request_config")
+        captured = []
+
+        class FakeImageConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeGenerationConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeImagePart:
+            def as_image(self):
+                return Image.new("RGB", (128, 128), "purple")
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                captured.append({"model": model, "config": config})
+                return pytypes.SimpleNamespace(candidates=[
+                    pytypes.SimpleNamespace(content=pytypes.SimpleNamespace(parts=[FakeImagePart()]))
+                ])
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.models = FakeModels()
+
+        fake_types = pytypes.ModuleType("google.genai.types")
+        fake_types.ImageConfig = FakeImageConfig
+        fake_types.GenerateContentConfig = FakeGenerationConfig
+        fake_genai = pytypes.ModuleType("google.genai")
+        fake_genai.Client = FakeClient
+        fake_genai.types = fake_types
+        fake_google = pytypes.ModuleType("google")
+        fake_google.genai = fake_genai
+
+        with (
+            patch.dict("sys.modules", {
+                "google": fake_google,
+                "google.genai": fake_genai,
+                "google.genai.types": fake_types,
+            }),
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-api-key-never-used"}),
+        ):
+            result = assets.generate_image_assets(self.output, allow_paid=True, max_images=1)
+
+        self.assertEqual(result["generated"], 1)
+        config = captured[0]["config"].kwargs
+        self.assertEqual(config["response_modalities"], ["TEXT", "IMAGE"])
+        self.assertEqual(config["image_config"].kwargs, {"aspect_ratio": "9:16", "image_size": "1K"})
+        from PIL import Image as PILImage
+        with PILImage.open(self.output / "frames" / "scene_001.png") as image:
+            self.assertEqual(image.size, assets.OUTPUT_SIZE)
+
     def test_image_stage_is_prompt_only_without_explicit_paid_opt_in(self):
         assets = load_numbered("02_assets.py", "test_assets")
         with patch.object(assets, "ALLOW_PAID_IMAGE_API", False):
@@ -273,6 +349,101 @@ class MysteryPipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(FileNotFoundError, "required scene media is missing"):
             assembly.assemble_episode(self.output)
 
+    def test_assembly_success_exports_portrait_mp4_and_quality_report(self):
+        assembly = load_numbered("05_assemble.py", "test_assemble_success")
+        self.output.joinpath("flow_clips").mkdir(parents=True, exist_ok=True)
+        self.output.joinpath("audio").mkdir(parents=True, exist_ok=True)
+        (self.output / "episode.json").write_text(json.dumps({
+            "title": "Assembly smoke test",
+            "scenes": [{"scene_number": 1}, {"scene_number": 2}],
+        }), encoding="utf-8")
+
+        for number, color in ((1, "red"), (2, "blue")):
+            scene_id = f"scene_{number:03d}"
+            video = self.output / "flow_clips" / f"{scene_id}.mp4"
+            audio = self.output / "audio" / f"{scene_id}.wav"
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", f"color=c={color}:s=360x640:r=24:d=1",
+                "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                str(video),
+            ], check=True, capture_output=True, text=True)
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1",
+                "-ac", "1", "-c:a", "pcm_s16le", str(audio),
+            ], check=True, capture_output=True, text=True)
+
+        output_file = self.output / "final_youtube_video.mp4"
+        report = assembly.assemble_episode(self.output, output_file=output_file, burn_subtitles=False)
+        self.assertTrue(output_file.is_file())
+        self.assertGreater(output_file.stat().st_size, 1000)
+        self.assertEqual(report["status"], "rendered_needs_human_review")
+        self.assertEqual(report["resolution"], "1080x1920")
+        self.assertEqual(report["fps"], 30)
+        self.assertEqual(report["scene_count"], 2)
+        self.assertTrue(report["human_review_required"])
+
+        probe = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate",
+            "-of", "json", str(output_file),
+        ], check=True, capture_output=True, text=True)
+        stream = json.loads(probe.stdout)["streams"][0]
+        self.assertEqual((stream["width"], stream["height"]), (1080, 1920))
+        self.assertEqual(stream["r_frame_rate"], "30/1")
+
+    def test_assembly_burns_subtitles_and_mixes_background_music(self):
+        assembly = load_numbered("05_assemble.py", "test_assemble_audio_mix")
+        self.output.joinpath("flow_clips").mkdir(parents=True, exist_ok=True)
+        self.output.joinpath("audio").mkdir(parents=True, exist_ok=True)
+        (self.output / "episode.json").write_text(json.dumps({
+            "title": "Caption and music smoke test",
+            "scenes": [{"scene_number": 1}],
+        }), encoding="utf-8")
+
+        scene_video = self.output / "flow_clips" / "scene_001.mp4"
+        scene_audio = self.output / "audio" / "scene_001.wav"
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "color=c=navy:s=360x640:r=24:d=2",
+            "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            str(scene_video),
+        ], check=True, capture_output=True, text=True)
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=2",
+            "-ac", "1", "-c:a", "pcm_s16le", str(scene_audio),
+        ], check=True, capture_output=True, text=True)
+
+        captions = self.output / "captions" / "subtitles.srt"
+        captions.parent.mkdir(parents=True, exist_ok=True)
+        captions.write_text(
+            "1\n00:00:00,100 --> 00:00:01,200\nThe signal is repeating.\n",
+            encoding="utf-8",
+        )
+        music = self.output / "licensed_test_music.wav"
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=44100:duration=1",
+            "-ac", "1", "-c:a", "pcm_s16le", str(music),
+        ], check=True, capture_output=True, text=True)
+
+        mixed_output = self.output / "captioned_music_test.mp4"
+        report = assembly.assemble_episode(
+            self.output, music_track=music, output_file=mixed_output, burn_subtitles=True
+        )
+        self.assertTrue(mixed_output.is_file())
+        self.assertGreater(mixed_output.stat().st_size, 1000)
+        self.assertTrue(report["subtitles_burned"])
+        self.assertTrue(report["music_mixed_and_ducked"])
+        streams = subprocess.run([
+            "ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
+            "-of", "json", str(mixed_output),
+        ], check=True, capture_output=True, text=True)
+        stream_types = {item["codec_type"] for item in json.loads(streams.stdout)["streams"]}
+        self.assertEqual(stream_types, {"video", "audio"})
+
     def test_colab_notebook_code_cells_compile_and_new_mode_is_wired(self):
         notebook_path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
         notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
@@ -303,6 +474,72 @@ class MysteryPipelineTests(unittest.TestCase):
         )
         self.assertIn("--allow-paid-images", result.stdout)
         self.assertIn("--stage", result.stdout)
+
+    def test_one_click_colab_runner_enforces_key_gpu_spend_guard_resume_warning_and_copy_ui(self):
+        notebook_path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        code_cells = [
+            "".join(cell.get("source", []))
+            for cell in notebook.get("cells", [])
+            if cell.get("cell_type") == "code"
+        ]
+        self.assertEqual(len(code_cells), 1)
+        source = code_cells[0]
+        compile(source, str(notebook_path), "exec")
+        self.assertIn('CODE_BRANCH = "improve/narrative-shorts-production"', source)
+        self.assertIn('"origin", CODE_BRANCH', source)
+        self.assertIn('userdata.get("GEMINI_API_KEY")', source)
+        self.assertIn('os.environ.get("GEMINI_API_KEY"', source)
+        self.assertIn("GEMINI_API_KEY is missing", source)
+        self.assertNotIn('api_key = ""', source)
+        self.assertIn("torch.cuda.is_available()", source)
+        self.assertIn('"nvidia-smi", "-L"', source)
+        self.assertIn('WHISPER_COMPUTE_TYPE = "int8"', source)
+        self.assertIn('"MYSTERY_WHISPER_COMPUTE_TYPE": WHISPER_COMPUTE_TYPE', source)
+        self.assertIn('RESUME_PROJECT_ID', source)
+        self.assertIn("is overriding the current TOPIC", source)
+        self.assertIn('"IMAGE_PROVIDER": IMAGE_PROVIDER', source)
+        self.assertIn('"VIDEO_PROVIDER": VIDEO_PROVIDER', source)
+        self.assertIn('"ENABLE_PAID_VIDEO_API": ENABLE_PAID_VIDEO_API', source)
+        self.assertIn('"ALLOW_PAID_IMAGE_API": ALLOW_PAID_IMAGE_API', source)
+        self.assertIn('"-r", str(requirements_path)', source)
+        self.assertIn("display(HTML(markup))", source)
+        self.assertIn("flow_master_prompt.md", source)
+        self.assertIn("flow_upload_manifest.txt", source)
+        self.assertIn("missing_or_empty", source)
+        self.assertNotIn('"--allow-paid-images"', source)
+        self.assertIn('"--stage", "prepare"', source)
+        command_start = source.index("    command = [")
+        command_end = source.index("    ]", command_start)
+        command_flags = set(re.findall(r'"(--[a-z-]+)"', source[command_start:command_end]))
+        from main import _parser
+        parser_flags = {
+            option
+            for action in _parser()._actions
+            for option in action.option_strings
+        }
+        self.assertTrue(command_flags)
+        self.assertEqual(command_flags - parser_flags, set())
+        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(all("==" in line for line in requirements if line.strip()))
+
+    def test_whisper_cuda_loader_falls_back_to_cpu_int8(self):
+        audio = load_numbered("03_audio.py", "test_audio_cuda_fallback")
+        calls = []
+
+        class FakeWhisperModel:
+            def __init__(self, model_name, device, compute_type):
+                calls.append((device, compute_type))
+                if device == "cuda":
+                    raise RuntimeError("CUDA runtime libraries are unavailable")
+
+        model, device, compute_type = audio._load_whisper_model(
+            FakeWhisperModel, "base.en", "cuda", "float16"
+        )
+        self.assertIsInstance(model, FakeWhisperModel)
+        self.assertEqual(device, "cpu")
+        self.assertEqual(compute_type, "int8")
+        self.assertEqual(calls, [("cuda", "float16"), ("cpu", "int8")])
 
 
 if __name__ == "__main__":

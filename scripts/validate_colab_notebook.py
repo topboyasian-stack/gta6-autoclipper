@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def main():
         if cell.get("cell_type") != "code":
             continue
         code_count += 1
+        ast.parse(source_text(cell), filename=f"{NOTEBOOK}:cell-{index}")
         compile(source_text(cell), f"{NOTEBOOK}:cell-{index}", "exec")
 
     all_source = "\n".join(source_text(cell) for cell in cells)
@@ -115,10 +117,15 @@ def main():
         if cell.get("cell_type") == "code"
     ]
     assert len(one_click_cells) == 1, "The one-click mystery runner must contain exactly one code cell."
+    ast.parse(one_click_cells[0][1], filename=f"{one_click_path}:cell-{one_click_cells[0][0]}")
     compile(one_click_cells[0][1], f"{one_click_path}:cell-{one_click_cells[0][0]}", "exec")
     assert "SCENE_COUNT = 6" in one_click_cells[0][1], "The one-click runner must default to six scenes."
     assert "mystery_run.log" in one_click_cells[0][1], "The one-click runner must preserve its Drive log."
-    assert '"ALLOW_PAID_IMAGE_API": "false"' in one_click_cells[0][1], "Paid image generation must stay disabled."
+    assert '"ALLOW_PAID_IMAGE_API": ALLOW_PAID_IMAGE_API' in one_click_cells[0][1], "Paid image generation must stay disabled."
+    assert "GEMINI_API_KEY is missing" in one_click_cells[0][1], "The one-click runner must abort immediately without the API key."
+    assert "torch.cuda.is_available()" in one_click_cells[0][1], "The one-click runner must detect CUDA availability."
+    assert "RESUME_PROJECT_ID" in one_click_cells[0][1], "The one-click runner must explicitly identify the resumed project."
+    assert "display(HTML(markup))" in one_click_cells[0][1], "The one-click runner must display copyable Flow artifacts inline."
     assert '"--allow-paid-images"' not in one_click_cells[0][1], "The one-click runner must not opt in to paid image generation."
 
     print(
