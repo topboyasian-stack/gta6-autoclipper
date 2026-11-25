@@ -238,7 +238,7 @@ class FlowBrowser:
     async def model(self, model):
         await self._click([r"model", r"veo", r"nano banana", r"settings"], False)
         if model.lower().startswith("veo 3.1") and "lite" in model.lower():
-            option = self.page.get_by_text(re.compile(r"^Veo\\s+3\\.1\\s*-?\\s*Lite(?:\\s*\\(.*\\))?$", re.I))
+            option = self.page.get_by_text(re.compile(r"^Veo\s+3\.1\s*-?\s*Lite(?:\s*\(.*\))?$", re.I))
         else:
             option = self.page.get_by_text(model, exact=True)
         chosen = False
@@ -258,7 +258,7 @@ class FlowBrowser:
         body = await self.body()
         verified = model.lower() in body.lower()
         if model.lower().startswith("veo 3.1") and "lite" in model.lower():
-            verified = bool(re.search(r"veo\\s+3\\.1\\s*-?\\s*lite", body, re.I))
+            verified = bool(re.search(r"veo\s+3\.1\s*-?\s*lite", body, re.I))
         if not verified:
             await self.diagnostics("model_unverified")
             raise FlowAutomationError(f"Selected model {model!r} could not be verified.")
