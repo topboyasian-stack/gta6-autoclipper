@@ -16,7 +16,7 @@ def _load_episode(output_dir: Path) -> EpisodePackage:
 
 
 def build_flow_pack(output_dir: Path, max_scenes_per_run: int | None = None) -> dict:
-    """Write a master prompt, image manifest and ordered scene batches for manual Flow use."""
+    """Write prompts, image paths, and ordered batches for the automated Flow worker."""
     out = Path(output_dir)
     frames_dir = out / "frames"
     clips_dir = out / "flow_clips"
