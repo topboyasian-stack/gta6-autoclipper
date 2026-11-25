@@ -384,6 +384,57 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertEqual((stream["width"], stream["height"]), (1080, 1920))
         self.assertEqual(stream["r_frame_rate"], "30/1")
 
+    def test_assembly_burns_subtitles_and_mixes_background_music(self):
+        assembly = load_numbered("05_assemble.py", "test_assemble_audio_mix")
+        self.output.joinpath("flow_clips").mkdir(parents=True, exist_ok=True)
+        self.output.joinpath("audio").mkdir(parents=True, exist_ok=True)
+        (self.output / "episode.json").write_text(json.dumps({
+            "title": "Caption and music smoke test",
+            "scenes": [{"scene_number": 1}],
+        }), encoding="utf-8")
+
+        scene_video = self.output / "flow_clips" / "scene_001.mp4"
+        scene_audio = self.output / "audio" / "scene_001.wav"
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "color=c=navy:s=360x640:r=24:d=2",
+            "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            str(scene_video),
+        ], check=True, capture_output=True, text=True)
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=2",
+            "-ac", "1", "-c:a", "pcm_s16le", str(scene_audio),
+        ], check=True, capture_output=True, text=True)
+
+        captions = self.output / "captions" / "subtitles.srt"
+        captions.parent.mkdir(parents=True, exist_ok=True)
+        captions.write_text(
+            "1\\n00:00:00,100 --> 00:00:01,200\\nThe signal is repeating.\\n",
+            encoding="utf-8",
+        )
+        music = self.output / "licensed_test_music.wav"
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=44100:duration=1",
+            "-ac", "1", "-c:a", "pcm_s16le", str(music),
+        ], check=True, capture_output=True, text=True)
+
+        mixed_output = self.output / "captioned_music_test.mp4"
+        report = assembly.assemble_episode(
+            self.output, music_track=music, output_file=mixed_output, burn_subtitles=True
+        )
+        self.assertTrue(mixed_output.is_file())
+        self.assertGreater(mixed_output.stat().st_size, 1000)
+        self.assertTrue(report["subtitles_burned"])
+        self.assertTrue(report["music_mixed_and_ducked"])
+        streams = subprocess.run([
+            "ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
+            "-of", "json", str(mixed_output),
+        ], check=True, capture_output=True, text=True)
+        stream_types = {item["codec_type"] for item in json.loads(streams.stdout)["streams"]}
+        self.assertEqual(stream_types, {"video", "audio"})
+
     def test_colab_notebook_code_cells_compile_and_new_mode_is_wired(self):
         notebook_path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
         notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
