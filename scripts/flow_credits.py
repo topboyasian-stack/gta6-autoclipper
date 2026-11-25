@@ -10,6 +10,7 @@ from typing import Any
 
 VIDEO_MODEL_COSTS = {
     "Veo 3.1 Lite": {4: 10, 6: 10, 8: 10},
+    "Veo 3.1 - Lite": {4: 10, 6: 10, 8: 10},
     "Veo 3.1 Fast": {4: 20, 6: 20, 8: 20},
     "Veo 3.1 Quality": {8: 100},
 }
