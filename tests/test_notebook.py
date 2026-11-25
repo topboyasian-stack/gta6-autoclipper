@@ -75,6 +75,8 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("FLOW_RESERVE_PERCENT = 10", source)
         self.assertIn("FLOW_TARGET_VIDEOS = 15", source)
         self.assertIn("FLOW_STRETCH_VIDEOS = 20", source)
+        self.assertIn('resume_answer.casefold() in {"yes", "y"}', source)
+        self.assertIn("if LOG_PATH is not None:", source)
 
     def test_video_previews_use_supported_api_and_cannot_fail_production(self):
         path = ROOT / "notebooks" / "GTA6_AutoClipper_Browser_Only.ipynb"
