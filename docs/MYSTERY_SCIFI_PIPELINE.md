@@ -72,7 +72,9 @@ The worker maintains `flow_credit_ledger.json` in the Drive workspace. It checks
 Open the one-click runner:
 `https://colab.research.google.com/github/topboyasian-stack/gta6-autoclipper/blob/main/notebooks/Mystery_SciFi_One_Click.ipynb`
 
-Run its single code cell. On first use, sign in normally in the embedded browser. Keep the Colab cell running while images/videos render. The worker stores the persistent profile at `GTA6_AutoClipper/browser_profiles/google_flow`, credits at `GTA6_AutoClipper/flow_credit_ledger.json`, and scene downloads in the episode's `flow_clips/` folder. If Colab disconnects, run the same notebook again; finished outputs are skipped.
+Run its single code cell. Choose **R** to resume the active/previous episode or **N** to start a new episode and enter its premise. The active project pointer is saved in Drive so a disconnected run can be resumed by default. Each new episode gets its own project folder, while all episodes share the same monthly Flow credit ledger.
+
+On first use, sign in normally in the embedded browser. Keep the Colab cell running while images/videos render. The worker stores the persistent profile at `GTA6_AutoClipper/browser_profiles/google_flow`, credits at `GTA6_AutoClipper/flow_credit_ledger.json`, and scene downloads in the episode's `flow_clips/` folder. If Colab disconnects, run the same notebook again and choose **R**; finished outputs are skipped.
 
 The monthly ledger's `FLOW_CREDIT_CYCLE_ID` must stay unchanged within the same Google Flow monthly credit cycle. At the next monthly allowance reset, archive the previous ledger and set a new cycle ID so the budget never silently resets or double-counts an earlier cycle.
 
