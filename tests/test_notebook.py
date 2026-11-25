@@ -64,7 +64,7 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("flow_upload_manifest.txt", source)
         self.assertNotIn('"--allow-paid-images"', source)
         self.assertIn('git", "-C", str(ROOT), "fetch"', source)
-        self.assertIn("FLOW_VIDEO_MODEL = \"Veo 3.1 Lite\"", source)
+        self.assertIn("FLOW_VIDEO_MODEL = \"Veo 3.1 - Lite\"", source)
         self.assertIn("FLOW_CREDIT_CYCLE_ID", source)
         self.assertIn("scripts/flow_automator.py", source)
         self.assertIn("serve_kernel_port_as_iframe", source)
