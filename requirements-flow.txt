@@ -1,0 +1,3 @@
+# Optional browser automation stack for the Colab Google Flow bridge.
+# Kept separate from core production packages; installed only by the Flow stage.
+playwright==1.65.2
