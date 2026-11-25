@@ -406,6 +406,14 @@ class FlowBrowser:
         try:
             await self.mode("image")
             await self.model(self.args.image_model)
+            for reference_path in item.get("reference_images", []):
+                reference = Path(reference_path)
+                if not reference.is_file() or reference.stat().st_size < 10000:
+                    raise FlowAutomationError(
+                        f"Character reference is missing or invalid: {reference}. "
+                        "The starting frame will not be generated without its continuity reference."
+                    )
+                await self.attach(reference)
             await self._fill_prompt(item["prompt"])
             await self.one_output()
             saved = await self.generate_and_download(path, "image")
