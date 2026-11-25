@@ -474,6 +474,23 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("--allow-paid-images", result.stdout)
         self.assertIn("--stage", result.stdout)
 
+    def test_one_click_colab_runner_targets_test_branch_and_allows_no_key_for_saved_plan(self):
+        notebook_path = ROOT / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        code_cells = [
+            "".join(cell.get("source", []))
+            for cell in notebook.get("cells", [])
+            if cell.get("cell_type") == "code"
+        ]
+        self.assertEqual(len(code_cells), 1)
+        source = code_cells[0]
+        self.assertIn('CODE_BRANCH = "improve/narrative-shorts-production"', source)
+        self.assertIn('"origin", CODE_BRANCH', source)
+        self.assertIn('api_key = ""', source)
+        self.assertIn("without an API request", source)
+        self.assertNotIn("GEMINI_API_KEY is missing or inaccessible", source)
+        self.assertIn('"ALLOW_PAID_IMAGE_API": "false"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
