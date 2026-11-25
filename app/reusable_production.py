@@ -1338,11 +1338,6 @@ def synthesize_episode_narration(
     voice_id: str = "en_US-joe-medium",
 ) -> dict:
     """Create episode-specific speech using a Piper voice with verified model-card licensing provenance."""
-    device_preference = (
-        device_preference or os.getenv("WHISPER_DEVICE", "auto") or "auto"
-    ).strip().lower()
-    desired_device, _ = resolve_whisper_runtime(device_preference)
-
     project_dir = Path(project_dir)
     brief = json.loads((project_dir / "episode_brief.json").read_text(encoding="utf-8"))
     script = str(brief.get("original_script", "")).strip()
@@ -1561,6 +1556,11 @@ def create_automatic_episode_captions(
         from faster_whisper import WhisperModel
     except ImportError as exc:
         raise RuntimeError("faster-whisper is not installed. Run the engineering setup cell again.") from exc
+
+    device_preference = (
+        device_preference or os.getenv("WHISPER_DEVICE", "auto") or "auto"
+    ).strip().lower()
+    desired_device, _ = resolve_whisper_runtime(device_preference)
 
     project_dir = Path(project_dir)
     brief = json.loads((project_dir / "episode_brief.json").read_text(encoding="utf-8"))
