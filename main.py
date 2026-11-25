@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -57,12 +59,43 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-scenes-per-flow-run", type=int, default=10, help="Scenes listed per Flow batch (hard cap 12)")
     parser.add_argument("--voice", help="Edge TTS narrator voice ID")
     parser.add_argument("--whisper-model", default=None, help="Faster-Whisper model name (default: base.en)")
-    parser.add_argument("--whisper-device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--whisper-device", choices=["auto", "cpu", "cuda"], default="auto",
+        help="Whisper hardware preference: auto uses CUDA when available and safely falls back to CPU",
+    )
     parser.add_argument("--music", type=Path, help="Optional licensed background music file")
     parser.add_argument("--no-subtitles", action="store_true", help="Create audio only; skip Whisper")
     parser.add_argument("--no-audio", action="store_true", help="Plan and prepare Flow manifests only")
     parser.add_argument("--force-plan", action="store_true", help="Back up and replace an existing episode.json")
     return parser
+
+
+def _topic_tokens(value: str) -> set[str]:
+    """Normalize a topic into meaningful tokens for conservative mismatch detection."""
+    ignored = {"a", "an", "and", "are", "as", "at", "by", "for", "from", "in",
+               "into", "is", "it", "of", "on", "or", "the", "that", "this", "to",
+               "was", "were", "with"}
+    return {
+        token for token in re.findall(r"[a-z0-9]+", str(value or "").casefold())
+        if len(token) > 1 and token not in ignored
+    }
+
+
+def _topics_differ_significantly(saved_topic: str, requested_topic: str) -> bool:
+    """Detect clearly different topics without warning on small wording changes."""
+    saved_normalized = " ".join(re.findall(r"[a-z0-9]+", str(saved_topic or "").casefold()))
+    requested_normalized = " ".join(re.findall(r"[a-z0-9]+", str(requested_topic or "").casefold()))
+    if not saved_normalized or not requested_normalized or saved_normalized == requested_normalized:
+        return False
+    saved_tokens = _topic_tokens(saved_topic)
+    requested_tokens = _topic_tokens(requested_topic)
+    if not saved_tokens or not requested_tokens:
+        return True
+    union = saved_tokens | requested_tokens
+    similarity = len(saved_tokens & requested_tokens) / max(1, len(union))
+    # A low token overlap is a clear change of subject. Rewordings with substantial
+    # overlap remain resumable without a noisy warning.
+    return similarity < 0.30
 
 
 def _plan(topic: str, output_dir: Path, scene_count: int, force: bool) -> dict:
@@ -72,10 +105,28 @@ def _plan(topic: str, output_dir: Path, scene_count: int, force: bool) -> dict:
     episode_path = output_dir / "episode.json"
     if episode_path.is_file() and not force:
         saved = EpisodePackage.model_validate_json(episode_path.read_text(encoding="utf-8"))
+        warning = None
+        if _topics_differ_significantly(saved.topic, topic):
+            resume_project_id = os.getenv("RESUME_PROJECT_ID", "").strip()
+            project_label = (
+                f"RESUME_PROJECT_ID='{resume_project_id}'"
+                if resume_project_id else f"the existing project at '{output_dir}'"
+            )
+            warning = (
+                f"WARNING: {project_label} is overriding the newly entered TOPIC. "
+                f"Saved plan topic: {saved.topic!r}. Requested TOPIC: {topic!r}. "
+                "The saved episode plan will be reused unchanged. To use the new topic, "
+                "enable 'Replace an existing episode plan after backing it up' or pass "
+                "--force-plan; the current plan will be backed up before regeneration."
+            )
+            print(warning, file=sys.stderr, flush=True)
         return {
             "status": "reused_existing_plan",
             "episode_json": str(episode_path),
             "title": saved.title,
+            "topic_used": saved.topic,
+            "requested_topic": topic,
+            "warning": warning,
             "scene_count": len(saved.scenes),
             "message": "Existing episode.json was preserved. Use --force-plan only when you intend to replace it.",
         }
@@ -106,7 +157,7 @@ def _prepare(args) -> dict:
         output_dir, allow_paid=args.allow_paid_images, max_images=args.max_images
     )
     if not args.no_audio:
-        print("Stage 3/4: creating narration audio and word-timed captions. This may take a while on CPU.", flush=True)
+        print("Stage 3/4: creating narration audio and word-timed captions using the selected Whisper device.", flush=True)
         audio = _load_numbered_stage("03_audio.py", "mystery_audio_stage")
         from config import WHISPER_MODEL
         results["audio"] = audio.generate_audio_and_subtitles(
