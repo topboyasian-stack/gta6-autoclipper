@@ -237,7 +237,10 @@ class FlowBrowser:
 
     async def model(self, model):
         await self._click([r"model", r"veo", r"nano banana", r"settings"], False)
-        option = self.page.get_by_text(model, exact=True)
+        if model.lower().startswith("veo 3.1") and "lite" in model.lower():
+            option = self.page.get_by_text(re.compile(r"^Veo\\s+3\\.1\\s*-?\\s*Lite(?:\\s*\\(.*\\))?$", re.I))
+        else:
+            option = self.page.get_by_text(model, exact=True)
         chosen = False
         for i in range(await option.count()):
             item = option.nth(i)
@@ -252,7 +255,11 @@ class FlowBrowser:
             await self.diagnostics("model_not_found")
             raise FlowAutomationError(f"Flow did not expose exact model {model!r}. No generation submitted.")
         await self.page.wait_for_timeout(700)
-        if model.lower() not in (await self.body()).lower():
+        body = await self.body()
+        verified = model.lower() in body.lower()
+        if model.lower().startswith("veo 3.1") and "lite" in model.lower():
+            verified = bool(re.search(r"veo\\s+3\\.1\\s*-?\\s*lite", body, re.I))
+        if not verified:
             await self.diagnostics("model_unverified")
             raise FlowAutomationError(f"Selected model {model!r} could not be verified.")
 
