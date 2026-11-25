@@ -235,12 +235,20 @@ class MysteryPipelineTests(unittest.TestCase):
 
     def test_asset_plan_assigns_expected_aspect_ratios(self):
         assets = load_numbered("02_assets.py", "test_asset_aspect_plan")
+        # Older saved plans used landscape prompt wording; the image stage must adapt it on reuse.
+        self.package.scenes[0].start_frame_prompt = (
+            "A wide horizontal 16:9 starting frame in an abandoned coastal radio station, "
+            "with a glowing brass receiver and rain against the window."
+        )
         plan = assets._prompt_plan(self.package, self.output)
         starts = [item for item in plan if item["kind"] == "starting_frame"]
         references = [item for item in plan if item["kind"] == "character_reference"]
         thumbnails = [item for item in plan if item["kind"] == "thumbnail"]
         self.assertEqual(len(starts), len(self.package.scenes))
         self.assertTrue(all(item["aspect_ratio"] == "9:16" for item in starts))
+        self.assertIn("vertical 9:16", starts[0]["prompt"])
+        self.assertNotIn("horizontal", starts[0]["prompt"].lower())
+        self.assertNotIn("16:9", starts[0]["prompt"])
         self.assertTrue(all(item["aspect_ratio"] == "16:9" for item in references + thumbnails))
 
     def test_paid_image_request_sets_aspect_ratio_without_calling_real_api(self):
