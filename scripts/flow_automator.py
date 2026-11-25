@@ -500,16 +500,21 @@ async def run(args):
     )
     LOG.info("Credit plan: %s", json.dumps(plan))
     missing_clips = [s for s in scenes if not (Path(s["output_clip"]).is_file() and Path(s["output_clip"]).stat().st_size > 50000)]
-    queue = missing_clips[:max(1, min(args.max_scenes, 12))]
-    projected = len(queue) * int(plan["credits_per_scene"])
     async with FlowBrowser(args, ledger) as browser:
         live_balance = await browser.balance()
         reserve = int(plan["monthly_reserve_credits"])
-        if live_balance < projected + reserve:
+        per_scene = int(plan["credits_per_scene"])
+        affordable_scenes = max(0, (live_balance - reserve) // per_scene)
+        queue_limit = min(args.max_scenes, 12, affordable_scenes)
+        queue = missing_clips[:queue_limit]
+        projected = len(queue) * per_scene
+        if missing_clips and not queue:
             raise FlowAutomationError(
-                f"This batch needs {projected} video credits plus {reserve} protected reserve; "
-                f"Flow currently shows {live_balance}. Stopped before any generation."
+                f"Flow currently shows {live_balance} credits. The controller protects {reserve}; "
+                f"at least {per_scene + reserve} are required for one scene. No video was submitted."
             )
+        LOG.info("Batch budget: %d missing clips, %d affordable now, %d queued, %d credits reserved.",
+                 len(missing_clips), affordable_scenes, len(queue), reserve)
         # Check exact requested video model before making any images.
         await browser.mode("video")
         await browser.model(args.video_model)
