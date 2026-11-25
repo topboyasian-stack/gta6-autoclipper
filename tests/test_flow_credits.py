@@ -11,6 +11,7 @@ from scripts.flow_automator import retry_key
 class FlowCreditTests(unittest.TestCase):
     def test_current_lite_cost_and_episode_targets(self):
         self.assertEqual(video_generation_cost("Veo 3.1 Lite", 8), 10)
+        self.assertEqual(video_generation_cost("Veo 3.1 - Lite", 8), 10)
         plan = episode_credit_plan(scene_count=6)
         self.assertEqual(plan["credits_per_episode"], 60)
         self.assertEqual(plan["planned_target_credits"], 900)
