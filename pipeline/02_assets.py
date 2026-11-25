@@ -27,8 +27,21 @@ def _load_episode(output_dir: Path) -> EpisodePackage:
 def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
     out = Path(output_dir)
     plan = []
+    characters_by_id = {character.character_id: character for character in package.characters}
     for scene in package.scenes:
         name = f"scene_{int(scene.scene_number):03d}.png"
+        recurring_characters = [
+            characters_by_id[character_id]
+            for character_id in scene.character_ids
+            if character_id in characters_by_id
+        ]
+        identity_context = " ".join(
+            (
+                f"Character {character.name}: {character.visual_description} "
+                f"Continuity anchors: {', '.join(character.continuity_anchors)}."
+            )
+            for character in recurring_characters
+        )
         plan.append({
             "kind": "starting_frame",
             "key": name,
@@ -36,8 +49,11 @@ def _prompt_plan(package: EpisodePackage, output_dir: Path) -> list[dict]:
             "prompt": (
                 "Create one cinematic horizontal 16:9 starting frame for an original mystery/sci-fi film. "
                 + package.visual_style + " "
+                + (identity_context + " " if identity_context else "")
                 + scene.start_frame_prompt
-                + " No written text, subtitles, logos, watermarks or panels."
+                + " Keep every recurring character's face, hair, clothing, body proportions and signature props "
+                  "identical to the supplied character description. No written text, subtitles, logos, "
+                  "watermarks or panels."
             ),
         })
     for character in package.characters:
