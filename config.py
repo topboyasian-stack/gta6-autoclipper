@@ -30,7 +30,7 @@ PLANNER_RETRY_MAX_DELAY_SECONDS = max(
     PLANNER_RETRY_INITIAL_DELAY_SECONDS,
     min(60.0, float(os.getenv("MYSTERY_PLANNER_RETRY_MAX_DELAY_SECONDS", "30"))),
 )
-IMAGE_MODEL = os.getenv("MYSTERY_IMAGE_MODEL", "gemini-3.1-flash-image")
+IMAGE_MODEL = os.getenv("MYSTERY_IMAGE_MODEL", "gemini-nano-banana-2.1")
 ALLOW_PAID_IMAGE_API = os.getenv("ALLOW_PAID_IMAGE_API", "false").strip().lower() in {"1", "true", "yes", "on"}
 MAX_SCENES_PER_FLOW_RUN = max(1, min(12, int(os.getenv("MAX_SCENES_PER_FLOW_RUN", "8"))))
 MAX_IMAGES_PER_API_RUN = max(1, min(10, int(os.getenv("MAX_IMAGES_PER_API_RUN", "10"))))
