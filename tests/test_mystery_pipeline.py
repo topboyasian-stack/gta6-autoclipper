@@ -272,6 +272,15 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertIn("## Character Reference", markdown)
         self.assertFalse((self.output / "frames" / "scene_001.png").exists())
 
+    def test_scene_image_prompts_include_matching_character_reference_paths(self):
+        assets = load_numbered("02_assets.py", "test_assets_references")
+        assets.generate_image_assets(self.output, allow_paid=False, max_images=10)
+        plan = json.loads((self.output / "assets_generation_plan.json").read_text(encoding="utf-8"))
+        first_scene = next(item for item in plan if item["kind"] == "starting_frame")
+        self.assertTrue(first_scene["reference_images"])
+        self.assertTrue(first_scene["reference_images"][0].endswith("character_lead.png"))
+        self.assertIn("Mara Vale", first_scene["prompt"])
+
     def test_audio_stage_caption_helpers_produce_valid_srt_timestamps(self):
         audio = load_numbered("03_audio.py", "test_audio")
         self.assertEqual(audio._srt_time(61.239), "00:01:01,239")
