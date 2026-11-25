@@ -233,6 +233,73 @@ class MysteryPipelineTests(unittest.TestCase):
         self.assertTrue(Path(result["master_prompt"]).is_file())
         self.assertTrue(Path(result["text_manifest"]).is_file())
 
+    def test_asset_plan_assigns_expected_aspect_ratios(self):
+        assets = load_numbered("02_assets.py", "test_asset_aspect_plan")
+        plan = assets._prompt_plan(self.package, self.output)
+        starts = [item for item in plan if item["kind"] == "starting_frame"]
+        references = [item for item in plan if item["kind"] == "character_reference"]
+        thumbnails = [item for item in plan if item["kind"] == "thumbnail"]
+        self.assertEqual(len(starts), len(self.package.scenes))
+        self.assertTrue(all(item["aspect_ratio"] == "9:16" for item in starts))
+        self.assertTrue(all(item["aspect_ratio"] == "16:9" for item in references + thumbnails))
+
+    def test_paid_image_request_sets_aspect_ratio_without_calling_real_api(self):
+        import types as pytypes
+        from PIL import Image
+
+        assets = load_numbered("02_assets.py", "test_image_request_config")
+        captured = []
+
+        class FakeImageConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeGenerationConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeImagePart:
+            def as_image(self):
+                return Image.new("RGB", (128, 128), "purple")
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                captured.append({"model": model, "config": config})
+                return pytypes.SimpleNamespace(candidates=[
+                    pytypes.SimpleNamespace(content=pytypes.SimpleNamespace(parts=[FakeImagePart()]))
+                ])
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.models = FakeModels()
+
+        fake_types = pytypes.ModuleType("google.genai.types")
+        fake_types.ImageConfig = FakeImageConfig
+        fake_types.GenerateContentConfig = FakeGenerationConfig
+        fake_genai = pytypes.ModuleType("google.genai")
+        fake_genai.Client = FakeClient
+        fake_genai.types = fake_types
+        fake_google = pytypes.ModuleType("google")
+        fake_google.genai = fake_genai
+
+        with (
+            patch.dict("sys.modules", {
+                "google": fake_google,
+                "google.genai": fake_genai,
+                "google.genai.types": fake_types,
+            }),
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-api-key-never-used"}),
+        ):
+            result = assets.generate_image_assets(self.output, allow_paid=True, max_images=1)
+
+        self.assertEqual(result["generated"], 1)
+        config = captured[0]["config"].kwargs
+        self.assertEqual(config["response_modalities"], ["TEXT", "IMAGE"])
+        self.assertEqual(config["image_config"].kwargs, {"aspect_ratio": "9:16", "image_size": "1K"})
+        from PIL import Image as PILImage
+        with PILImage.open(self.output / "frames" / "scene_001.png") as image:
+            self.assertEqual(image.size, assets.OUTPUT_SIZE)
+
     def test_image_stage_is_prompt_only_without_explicit_paid_opt_in(self):
         assets = load_numbered("02_assets.py", "test_assets")
         with patch.object(assets, "ALLOW_PAID_IMAGE_API", False):
