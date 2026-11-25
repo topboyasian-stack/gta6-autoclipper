@@ -1,13 +1,9 @@
-"""CLI orchestrator for the modular mystery/sci-fi video workflow.
+"""CLI orchestrator for the modular mystery/sci-fi Shorts workflow.
 
 Typical use:
   python main.py --topic "The signal that arrives one day too early"
   python main.py --stage assets --output output --allow-paid-images --max-images 10
   python main.py --stage assemble --output output
-
-The first command plans the episode, prepares image prompts (but does not bill for image
-generation by default), creates narration and word-timed captions, then writes Flow batches.
-Video generation remains in Google Flow unless a separately tested local browser adapter is used.
 """
 from __future__ import annotations
 
@@ -22,6 +18,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from config import DEFAULT_SCENE_COUNT, MAX_SCENES_PER_FLOW_RUN
 
 
 def _load_numbered_stage(filename: str, module_name: str):
@@ -39,22 +37,23 @@ def _print(payload: Any) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Modular mystery/sci-fi episode production")
+    parser = argparse.ArgumentParser(description="Modular mystery/sci-fi Shorts production")
     parser.add_argument("--topic", help="One-line premise or episode topic")
     parser.add_argument("--output", type=Path, default=ROOT / "output", help="Episode working folder")
-    parser.add_argument("--scene-count", type=int, default=24, help="Requested number of 4–10 second scenes")
+    parser.add_argument("--scene-count", type=int, default=DEFAULT_SCENE_COUNT,
+                        help="Scenes for the vertical Short (default 8; each planned around 8 seconds)")
     parser.add_argument(
-        "--stage",
-        choices=["prepare", "plan", "assets", "audio", "flow-pack", "assemble"],
-        default=None,
-        help="Run one stage or the full prepare workflow",
+        "--stage", choices=["prepare", "plan", "assets", "audio", "flow-pack", "assemble"],
+        default=None, help="Run one stage or the full prepare workflow",
     )
     parser.add_argument(
         "--allow-paid-images", action="store_true",
         help="Explicitly authorize a bounded Gemini Developer API image-generation batch; may incur separate charges",
     )
-    parser.add_argument("--max-images", type=int, default=10, help="Images generated in this one API run (hard cap 10)")
-    parser.add_argument("--max-scenes-per-flow-run", type=int, default=10, help="Scenes listed per Flow batch (hard cap 12)")
+    parser.add_argument("--max-images", type=int, default=10,
+                        help="Images generated in this one API run (hard cap 10)")
+    parser.add_argument("--max-scenes-per-flow-run", type=int, default=MAX_SCENES_PER_FLOW_RUN,
+                        help="Scenes listed per Flow batch (default 8; hard cap 12)")
     parser.add_argument("--voice", help="Edge TTS narrator voice ID")
     parser.add_argument("--whisper-model", default=None, help="Faster-Whisper model name (default: base.en)")
     parser.add_argument("--whisper-device", choices=["cpu", "cuda"], default="cpu")
@@ -67,18 +66,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def _plan(topic: str, output_dir: Path, scene_count: int, force: bool) -> dict:
     from pipeline.models import EpisodePackage
-
     output_dir.mkdir(parents=True, exist_ok=True)
     episode_path = output_dir / "episode.json"
     if episode_path.is_file() and not force:
         saved = EpisodePackage.model_validate_json(episode_path.read_text(encoding="utf-8"))
-        return {
-            "status": "reused_existing_plan",
-            "episode_json": str(episode_path),
-            "title": saved.title,
-            "scene_count": len(saved.scenes),
-            "message": "Existing episode.json was preserved. Use --force-plan only when you intend to replace it.",
-        }
+        return {"status": "reused_existing_plan", "episode_json": str(episode_path), "title": saved.title,
+                "scene_count": len(saved.scenes),
+                "message": "Existing episode.json was preserved. Use --force-plan only when you intend to replace it."}
     if episode_path.is_file() and force:
         from datetime import datetime, timezone
         backup = output_dir / f"episode.backup.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
@@ -102,30 +96,23 @@ def _prepare(args) -> dict:
 
     print("Stage 2/4: preparing image prompts only; paid image API is disabled unless explicitly requested.", flush=True)
     assets = _load_numbered_stage("02_assets.py", "mystery_assets_stage")
-    results["assets"] = assets.generate_image_assets(
-        output_dir, allow_paid=args.allow_paid_images, max_images=args.max_images
-    )
+    results["assets"] = assets.generate_image_assets(output_dir, allow_paid=args.allow_paid_images, max_images=args.max_images)
     if not args.no_audio:
         print("Stage 3/4: creating narration audio and word-timed captions. This may take a while on CPU.", flush=True)
         audio = _load_numbered_stage("03_audio.py", "mystery_audio_stage")
         from config import WHISPER_MODEL
         results["audio"] = audio.generate_audio_and_subtitles(
-            output_dir,
-            voice=args.voice,
-            whisper_model_name=args.whisper_model or WHISPER_MODEL,
-            make_subtitles=not args.no_subtitles,
-            whisper_device=args.whisper_device,
+            output_dir, voice=args.voice, whisper_model_name=args.whisper_model or WHISPER_MODEL,
+            make_subtitles=not args.no_subtitles, whisper_device=args.whisper_device,
         )
     else:
         print("Stage 3/4: narration and captions were skipped by request.", flush=True)
     print("Stage 4/4: building the ordered Google Flow manifest…", flush=True)
     flow_pack = _load_numbered_stage("04_flow_pack.py", "mystery_flow_pack_stage")
-    results["flow_pack"] = flow_pack.build_flow_pack(
-        output_dir, max_scenes_per_run=args.max_scenes_per_flow_run
-    )
+    results["flow_pack"] = flow_pack.build_flow_pack(output_dir, max_scenes_per_run=args.max_scenes_per_flow_run)
     results["next_step"] = (
-        "Review the episode and assets. Generate/import missing starting frames into frames/, "
-        "then use the ordered Flow batch manifest. Export every clip as scene_NNN.mp4 into flow_clips/."
+        "Review the episode and assets. Generate/import missing starting frames into frames/, then use the "
+        "ordered Flow batch manifest. Export every clip as scene_NNN.mp4 into flow_clips/."
     )
     print("Preparation stages completed. Final results follow.", flush=True)
     return results
@@ -142,30 +129,20 @@ def main(argv: list[str] | None = None) -> int:
         result = _plan(args.topic, args.output.resolve(), args.scene_count, args.force_plan)
     elif stage == "assets":
         assets = _load_numbered_stage("02_assets.py", "mystery_assets_stage")
-        result = assets.generate_image_assets(
-            args.output.resolve(), allow_paid=args.allow_paid_images, max_images=args.max_images
-        )
+        result = assets.generate_image_assets(args.output.resolve(), allow_paid=args.allow_paid_images, max_images=args.max_images)
     elif stage == "audio":
         audio = _load_numbered_stage("03_audio.py", "mystery_audio_stage")
         from config import WHISPER_MODEL
         result = audio.generate_audio_and_subtitles(
-            args.output.resolve(),
-            voice=args.voice,
-            whisper_model_name=args.whisper_model or WHISPER_MODEL,
-            make_subtitles=not args.no_subtitles,
-            whisper_device=args.whisper_device,
+            args.output.resolve(), voice=args.voice, whisper_model_name=args.whisper_model or WHISPER_MODEL,
+            make_subtitles=not args.no_subtitles, whisper_device=args.whisper_device,
         )
     elif stage == "flow-pack":
         flow_pack = _load_numbered_stage("04_flow_pack.py", "mystery_flow_pack_stage")
-        result = flow_pack.build_flow_pack(
-            args.output.resolve(), max_scenes_per_run=args.max_scenes_per_flow_run
-        )
+        result = flow_pack.build_flow_pack(args.output.resolve(), max_scenes_per_run=args.max_scenes_per_flow_run)
     elif stage == "assemble":
         assembly = _load_numbered_stage("05_assemble.py", "mystery_assemble_stage")
-        result = assembly.assemble_episode(
-            args.output.resolve(),
-            music_track=args.music,
-        )
+        result = assembly.assemble_episode(args.output.resolve(), music_track=args.music)
     else:
         raise ValueError(f"Unsupported stage: {stage}")
     _print(result)
