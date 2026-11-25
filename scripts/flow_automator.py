@@ -12,7 +12,10 @@ import sys
 import time
 from pathlib import Path
 
-from flow_credits import FlowCreditLedger, episode_credit_plan
+try:
+    from .flow_credits import FlowCreditLedger, episode_credit_plan
+except ImportError:  # The Colab runner invokes this file directly as a script.
+    from flow_credits import FlowCreditLedger, episode_credit_plan
 
 FLOW_URL = "https://labs.google/fx/tools/flow"
 LOG = logging.getLogger("flow_automator")
