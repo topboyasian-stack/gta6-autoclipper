@@ -122,6 +122,22 @@ def _write_srt(cues: list[dict], target: Path) -> None:
     target.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+
+def _load_whisper_model(model_class, model_name: str, device: str, compute_type: str):
+    """Load Whisper on the requested device; retry CPU/int8 if CUDA initialization fails."""
+    try:
+        return model_class(model_name, device=device, compute_type=compute_type), device, compute_type
+    except Exception as exc:
+        if device != "cuda":
+            raise
+        print(
+            f"Whisper CUDA initialization failed ({type(exc).__name__}: {exc}); "
+            "retrying on CPU (int8).",
+            flush=True,
+        )
+        fallback_compute_type = "int8"
+        return model_class(model_name, device="cpu", compute_type=fallback_compute_type), "cpu", fallback_compute_type
+
 def generate_audio_and_subtitles(
     output_dir: Path,
     voice: str | None = None,
@@ -198,9 +214,13 @@ def generate_audio_and_subtitles(
     device = (whisper_device or os.getenv("MYSTERY_WHISPER_DEVICE", "cpu")).strip().lower()
     if device not in {"cpu", "cuda"}:
         raise ValueError("whisper_device must be 'cpu' or 'cuda'.")
-    compute_type = "float16" if device == "cuda" else "int8"
+    default_compute_type = "float16" if device == "cuda" else "int8"
+    compute_type = os.getenv("MYSTERY_WHISPER_COMPUTE_TYPE", default_compute_type).strip().lower()
+    allowed_compute_types = {"cuda": {"float16", "int8_float16"}, "cpu": {"int8", "float32"}}
+    if compute_type not in allowed_compute_types[device]:
+        compute_type = default_compute_type
     print(f"Whisper: loading {whisper_model_name} on {device} ({compute_type}); first use may download the model.", flush=True)
-    model = WhisperModel(whisper_model_name, device=device, compute_type=compute_type)
+    model, device, compute_type = _load_whisper_model(WhisperModel, whisper_model_name, device, compute_type)
     all_words: list[dict] = []
     offset = 0.0
     for index, item in enumerate(manifest, start=1):
