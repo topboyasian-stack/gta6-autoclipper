@@ -107,8 +107,11 @@ def assemble_episode(
         filter_parts.append(
             f"[{next_input}:a]volume=0.26,afade=t=out:st={fade_start:.3f}:d={min(3.0, total_duration):.3f}[bg]"
         )
-        filter_parts.append("[bg][basea]sidechaincompress=threshold=0.025:ratio=7:attack=40:release=450[ducked]")
-        filter_parts.append("[basea][ducked]amix=inputs=2:duration=first:dropout_transition=2[finala]")
+        filter_parts.append("[basea]asplit=2[voice_sidechain][voice_mix]")
+        filter_parts.append(
+            "[bg][voice_sidechain]sidechaincompress=threshold=0.025:ratio=7:attack=40:release=450[ducked]"
+        )
+        filter_parts.append("[voice_mix][ducked]amix=inputs=2:duration=first:dropout_transition=2[finala]")
         audio_label = "finala"
     if use_captions:
         # Larger caption type and a generous bottom safe margin for phone-first viewing.
