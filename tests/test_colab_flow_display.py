@@ -3,6 +3,11 @@ import unittest
 from pathlib import Path
 
 from scripts.colab_flow_display import ColabFlowDisplay
+from scripts.colab_flow_tunnel import (
+    build_tunnel_command,
+    cloudflared_asset,
+    extract_tunnel_url,
+)
 
 
 class ColabFlowDisplayTests(unittest.TestCase):
@@ -35,7 +40,46 @@ class ColabFlowDisplayTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["127.0.0.1:16080", "127.0.0.1:15900"])
 
 
-    def test_viewer_is_embedded_without_deprecated_window_helper(self):
+    def test_cloudflared_binary_is_pinned_with_sha256(self):
+        asset = cloudflared_asset("x86_64")
+        self.assertEqual(
+            asset["url"],
+            "https://github.com/cloudflare/cloudflared/releases/download/2026.11.2/cloudflared-linux-amd64",
+        )
+        self.assertEqual(
+            asset["sha256"],
+            "56f13335143ec0e22772963290683a84a04114a35ec64cbc794a4d39ff9bb8cf",
+        )
+        with self.assertRaises(RuntimeError):
+            cloudflared_asset("unknown-cpu")
+
+    def test_quick_tunnel_requires_the_expected_email_and_loopback_origin(self):
+        command = build_tunnel_command(
+            "/content/cloudflared",
+            "http://127.0.0.1:6080",
+            "Owner@Example.com",
+        )
+        self.assertEqual(command[0], "/content/cloudflared")
+        self.assertIn("--allowed-mail", command)
+        self.assertIn("owner@example.com", command)
+        self.assertIn("--protocol", command)
+        self.assertIn("http2", command)
+        self.assertNotIn("--no-autoupdate", command[2:])
+
+    def test_quick_tunnel_rejects_invalid_email_and_public_origins(self):
+        with self.assertRaises(ValueError):
+            build_tunnel_command("/content/cloudflared", "http://127.0.0.1:6080", "bad-email")
+        with self.assertRaises(ValueError):
+            build_tunnel_command("/content/cloudflared", "http://0.0.0.0:6080", "owner@example.com")
+
+    def test_quick_tunnel_url_is_parsed_from_cloudflared_output(self):
+        self.assertEqual(
+            extract_tunnel_url("INF Tunnel created at https://silver-fox-24.trycloudflare.com"),
+            "https://silver-fox-24.trycloudflare.com",
+        )
+        self.assertIsNone(extract_tunnel_url("no tunnel url here"))
+
+    def test_notebook_exposes_browser_through_email_restricted_tunnel(self):
         import json
         from pathlib import Path
 
@@ -47,12 +91,15 @@ class ColabFlowDisplayTests(unittest.TestCase):
             for cell in notebook.get("cells", [])
             if cell.get("cell_type") == "code"
         )
-        self.assertIn("colab_output.serve_kernel_port_as_iframe(", source)
-        self.assertNotIn("display(colab_output.serve_kernel_port_as_iframe(", source)
+        self.assertIn("ColabFlowTunnel", source)
+        self.assertIn("allowed_email=FLOW_EXPECTED_GOOGLE_EMAIL", source)
+        self.assertIn("flow_tunnel.start()", source)
+        self.assertIn("flow_tunnel.stop()", source)
+        self.assertIn("one-time PIN", source)
+        self.assertNotIn("serve_kernel_port_as_iframe", source)
         self.assertNotIn("serve_kernel_port_as_window", source)
-        self.assertIn("Colab's separate-tab", source)
-        self.assertIn('width="100%"', source)
-        self.assertIn('height=850', source)
+        self.assertLess(source.index("flow_tunnel.start()"), source.index('run_logged("Generate Flow starting frames'))
+
 
 
 if __name__ == "__main__":
