@@ -64,7 +64,7 @@ class ColabFlowDisplayTests(unittest.TestCase):
         self.assertIn("owner@example.com", command)
         self.assertIn("--protocol", command)
         self.assertIn("http2", command)
-        self.assertNotIn("--no-autoupdate", command[2:])
+        self.assertIn("--no-autoupdate", command[2:])
 
     def test_quick_tunnel_rejects_invalid_email_and_public_origins(self):
         with self.assertRaises(ValueError):
