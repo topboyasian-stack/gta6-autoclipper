@@ -1,4 +1,4 @@
-"""Email-restricted temporary access to the Colab noVNC desktop."""
+"""Temporary Cloudflare Quick Tunnel access to the Colab noVNC desktop."""
 from __future__ import annotations
 
 import hashlib
@@ -184,7 +184,7 @@ class ColabFlowTunnel:
             tail = "\n".join(self._tail[-25:])
         self.stop()
         raise RuntimeError(
-            "Cloudflare could not create the authenticated browser link. "
+             "Cloudflare could not create the temporary browser link. "
             "No Google Flow generation was submitted. "
             f"cloudflared log ({self.log_path}):\n{tail}"
         )
