@@ -154,8 +154,8 @@ class FlowBrowser:
             return ""
 
     async def _login(self):
-        LOG.info("[AUTH] Checking whether this saved browser profile is signed in; sign in inside the embedded browser if prompted.")
-        start, announced = time.monotonic(), False
+        LOG.info("[AUTH] Checking whether this saved browser profile is signed in; use the embedded browser if sign-in or account selection appears.")
+        start, announced, last_notice = time.monotonic(), False, 0.0
         while time.monotonic() - start < self.args.login_timeout:
             url, body = self.page.url.lower(), (await self.body()).lower()
             signed_in = "labs.google" in url and "accounts.google.com" not in url
@@ -164,10 +164,18 @@ class FlowBrowser:
                 LOG.info("[AUTH] Flow page is open; the active Google account still needs explicit verification.")
                 return
             if login_screen and not announced:
-                LOG.warning("[AUTH] SIGN-IN REQUIRED: use the embedded browser and select the intended Google account.")
+                LOG.warning("[AUTH] SIGN-IN REQUIRED: complete sign-in inside the embedded browser, then select the expected account.")
                 announced = True
+            now = time.monotonic()
+            if now - last_notice >= 15:
+                LOG.info(
+                    "[AUTH] Still checking sign-in state; %ds remain. Look at the embedded browser for a sign-in, security, or account-selection screen. No generation has been submitted.",
+                    max(0, int(self.args.login_timeout - (now - start))),
+                )
+                last_notice = now
             await self.page.wait_for_timeout(1000)
-        raise FlowAutomationError("Google sign-in timed out. Your Drive browser profile is retained for the next run.")
+        await self.diagnostics("login_timeout")
+        raise FlowAutomationError("Google sign-in timed out. No generation was submitted; the Drive browser profile is retained for the next run.")
 
     async def verify_account(self, expected_account: str):
         """Fail closed unless the expected email is visible in the active Google account UI."""
