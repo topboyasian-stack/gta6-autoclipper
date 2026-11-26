@@ -35,5 +35,25 @@ class ColabFlowDisplayTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["127.0.0.1:16080", "127.0.0.1:15900"])
 
 
+    def test_viewer_is_embedded_and_has_separate_tab_fallback(self):
+        import json
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        notebook_path = root / "notebooks" / "Mystery_SciFi_One_Click.ipynb"
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        source = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in notebook.get("cells", [])
+            if cell.get("cell_type") == "code"
+        )
+        self.assertIn("colab_output.serve_kernel_port_as_iframe(", source)
+        self.assertNotIn("display(colab_output.serve_kernel_port_as_iframe(", source)
+        self.assertIn("colab_output.serve_kernel_port_as_window(", source)
+        self.assertIn('anchor_text="Open Google Flow browser in a new tab"', source)
+        self.assertIn('width="100%"', source)
+        self.assertIn('height=850', source)
+
+
 if __name__ == "__main__":
     unittest.main()
