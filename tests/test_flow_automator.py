@@ -49,6 +49,8 @@ class ExpectedFlowAccountTests(unittest.TestCase):
         self.assertIn("[AUTH] VERIFIED active Google account", source)
         self.assertIn("[BALANCE] Verified live balance", source)
         self.assertIn("Still rendering", source)
+        self.assertIn("Still checking sign-in state", source)
+        self.assertIn('await self.diagnostics("login_timeout")', source)
 
 
 if __name__ == "__main__":
