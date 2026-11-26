@@ -199,45 +199,70 @@ class FlowBrowser:
                     continue
             return "\\n".join(fragments).casefold()
 
-        controls = self.page.locator(account_selector)
-        control_count = await controls.count()
-        direct_identity = ""
-        clickable = None
-        for i in range(min(control_count, 20)):
-            node = controls.nth(i)
-            try:
-                if not await node.is_visible():
+        async def direct_account_identity():
+            controls = self.page.locator(account_selector)
+            values = []
+            clickable = None
+            for i in range(min(await controls.count(), 20)):
+                node = controls.nth(i)
+                try:
+                    if not await node.is_visible():
+                        continue
+                    parts = [await node.get_attribute(attr) or "" for attr in ("aria-label", "title", "alt", "data-email")]
+                    values.extend(parts)
+                    if clickable is None:
+                        clickable = node
+                except Exception:
                     continue
-                parts = [await node.get_attribute(attr) or "" for attr in ("aria-label", "title", "alt", "data-email")]
-                direct_identity += " " + " ".join(parts)
-                if clickable is None:
-                    clickable = node
-            except Exception:
-                continue
+            return " ".join(values).casefold(), clickable
 
-        if expected not in direct_identity.casefold() and clickable is not None:
+        direct_identity, clickable = await direct_account_identity()
+        if expected in direct_identity:
+            LOG.info("[AUTH] VERIFIED active Google account from its account control: %s", expected_account)
+            return
+
+        if clickable is not None:
             try:
                 LOG.info("[AUTH] Opening Google account menu to confirm account identity.")
                 await clickable.click()
-                await self.page.wait_for_timeout(700)
+                await self.page.wait_for_timeout(500)
             except Exception as exc:
-                LOG.warning("[AUTH] Could not open the Google account menu: %s", exc)
+                LOG.warning("[AUTH] Could not open the Google account menu yet: %s", exc)
 
-        evidence = await visible_identity_text()
-        account_menu_visible = any(
-            marker in evidence
-            for marker in ("manage your google account", "sign out", "sign out of", "switch account", "add another account")
+        # Keep the browser interactive while the user signs in or switches accounts.
+        # Nothing in this method submits a billable generation.
+        deadline = time.monotonic() + 180
+        last_notice = 0.0
+        LOG.warning(
+            "[AUTH] Expected account is not confirmed yet. In the embedded browser, sign in or switch to %s. "
+            "Generation remains blocked until this exact account is verified.",
+            expected_account,
         )
-        if expected not in direct_identity.casefold() and not (
-            expected in evidence and account_menu_visible
-        ):
-            await self.diagnostics("account_unverified")
-            raise FlowAutomationError(
-                f"Could not verify that Google Flow is using {expected_account!r}. "
-                "No image or video generation was submitted. Check the account in the embedded browser, "
-                "then resume with the same expected email."
+        while time.monotonic() < deadline:
+            direct_identity, _ = await direct_account_identity()
+            evidence = await visible_identity_text()
+            account_menu_visible = any(
+                marker in evidence
+                for marker in ("manage your google account", "sign out", "sign out of")
             )
-        LOG.info("[AUTH] VERIFIED active Google account: %s", expected_account)
+            if expected in direct_identity or (expected in evidence and account_menu_visible):
+                LOG.info("[AUTH] VERIFIED active Google account: %s", expected_account)
+                return
+            now = time.monotonic()
+            if now - last_notice >= 15:
+                LOG.info(
+                    "[AUTH] Still waiting for account confirmation (%ds remaining); no generation has been submitted.",
+                    max(0, int(deadline - now)),
+                )
+                last_notice = now
+            await self.page.wait_for_timeout(2000)
+
+        await self.diagnostics("account_unverified")
+        raise FlowAutomationError(
+            f"Could not verify that Google Flow is using {expected_account!r}. "
+            "No image or video generation was submitted. The browser profile was retained; "
+            "check the account menu and resume with the same expected email."
+        )
 
     async def diagnostics(self, label: str):
         try:
