@@ -22,7 +22,7 @@ CLOUDFLARED_ASSETS = {
         "sha256": "56f13335143ec0e22772963290683a84a04114a35ec64cbc794a4d39ff9bb8cf",
     },
 }
-TUNNEL_URL_RE = re.compile(r"https://[a-z0-9-]+\\.trycloudflare\\.com", re.I)
+TUNNEL_URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.I)
 
 
 def cloudflared_asset(machine: str | None = None) -> dict[str, str]:
@@ -86,7 +86,7 @@ def build_tunnel_command(
 ) -> list[str]:
     """Build an email-restricted Quick Tunnel command for the noVNC HTTP endpoint."""
     email = str(allowed_email or "").strip().casefold()
-    if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise ValueError("A valid email address is required to restrict browser tunnel access.")
     if not str(origin_url).startswith("http://127.0.0.1:"):
         raise ValueError("The browser tunnel origin must be a loopback HTTP URL.")
@@ -142,7 +142,7 @@ class ColabFlowTunnel:
             with self.log_path.open("a", encoding="utf-8") as log:
                 for raw in self.process.stdout:
                     line = raw.rstrip()
-                    log.write(line + "\\n")
+                    log.write(line + "\n")
                     log.flush()
                     with self._lock:
                         self._tail.append(line)
@@ -191,12 +191,12 @@ class ColabFlowTunnel:
                 break
 
         with self._lock:
-            tail = "\\n".join(self._tail[-25:])
+            tail = "\n".join(self._tail[-25:])
         self.stop()
         raise RuntimeError(
             "Cloudflare could not create the authenticated browser link. "
             "No Google Flow generation was submitted. "
-            f"cloudflared log ({self.log_path}):\\n{tail}"
+            f"cloudflared log ({self.log_path}):\n{tail}"
         )
 
     def stop(self) -> None:
