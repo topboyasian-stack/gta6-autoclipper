@@ -62,6 +62,160 @@ def validate_expected_account(value: str) -> str:
     return email
 
 
+
+CHROMIUM_PROFILE_LOCKS = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+CHROMIUM_PROFILE_IGNORES = {
+    *CHROMIUM_PROFILE_LOCKS,
+    "DevToolsActivePort",
+    "Crashpad",
+    "BrowserMetrics",
+    "GPUCache",
+    "Code Cache",
+    "Cache",
+    "Media Cache",
+    "DawnCache",
+    "GrShaderCache",
+    "ShaderCache",
+    "component_crx_cache",
+    "Crash Reports",
+}
+
+
+def chromium_profile_is_locked(profile_dir: Path) -> bool:
+    """Detect Chromium singleton markers without deleting or modifying them."""
+    import os
+    profile_dir = Path(profile_dir)
+    return any(os.path.lexists(profile_dir / name) for name in CHROMIUM_PROFILE_LOCKS)
+
+
+def _ignore_chromium_profile_cache(_directory: str, names: list[str]) -> set[str]:
+    """Exclude runtime locks and disposable caches from profile snapshots."""
+    return {name for name in names if name in CHROMIUM_PROFILE_IGNORES}
+
+
+class ChromiumProfileStore:
+    """Stage a Drive-backed browser profile locally and snapshot it after Chromium exits.
+
+    Chromium must not hold its singleton lock on Google Drive/FUSE: Colab sessions can
+    run on different hosts, leaving a remote-host lock that prevents the next launch.
+    """
+
+    def __init__(self, persisted_profile_dir: Path):
+        import tempfile
+        import uuid
+
+        self.persisted_dir = Path(persisted_profile_dir).expanduser().resolve()
+        self.pointer_path = self.persisted_dir.with_name(self.persisted_dir.name + ".active.json")
+        self.snapshots_dir = self.persisted_dir.with_name(self.persisted_dir.name + "_sessions")
+        self.runtime_dir = Path(tempfile.mkdtemp(prefix="google-flow-chromium-"))
+        self.source_dir: Path | None = None
+        self.source_locked = False
+        self._prepared = False
+        self._uuid = uuid.uuid4().hex
+
+    def _select_source(self) -> Path:
+        if self.pointer_path.is_file():
+            try:
+                pointer = json.loads(self.pointer_path.read_text(encoding="utf-8"))
+                candidate = Path(pointer.get("profile_dir", "")).expanduser().resolve()
+                snapshots_root = self.snapshots_dir.resolve()
+                if candidate.is_dir() and candidate.parent == snapshots_root:
+                    return candidate
+                LOG.warning(
+                    "[AUTH] Ignoring invalid or missing saved profile pointer: %s",
+                    self.pointer_path,
+                )
+            except Exception as exc:
+                LOG.warning("[AUTH] Could not read saved profile pointer: %s", exc)
+        return self.persisted_dir
+
+    def prepare(self) -> Path:
+        """Create the local Chromium profile, copying only an unlocked saved profile."""
+        if self._prepared:
+            return self.runtime_dir
+        self._prepared = True
+        self.source_dir = self._select_source()
+        if chromium_profile_is_locked(self.source_dir):
+            self.source_locked = True
+            LOG.warning(
+                "[AUTH] A Chromium lock marker exists in the saved Drive profile (%s). "
+                "It may belong to another Colab runtime. Preserving it untouched and "
+                "starting an isolated local profile; Google sign-in may be required.",
+                self.source_dir,
+            )
+            return self.runtime_dir
+
+        if self.source_dir.is_dir():
+            try:
+                shutil.copytree(
+                    self.source_dir,
+                    self.runtime_dir,
+                    dirs_exist_ok=True,
+                    ignore=_ignore_chromium_profile_cache,
+                )
+                LOG.info(
+                    "[AUTH] Copied saved browser state from Drive to local Colab storage: %s",
+                    self.source_dir,
+                )
+            except Exception as exc:
+                # A damaged or partially synced profile must not block browser startup.
+                # Keep the source intact and fall back to a clean local profile.
+                LOG.warning(
+                    "[AUTH] Saved profile could not be staged (%s). Starting a clean local profile; "
+                    "the Drive copy remains untouched.",
+                    exc,
+                )
+                for child in self.runtime_dir.iterdir():
+                    if child.is_dir() and not child.is_symlink():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink(missing_ok=True)
+        else:
+            LOG.info("[AUTH] No saved Flow profile found; creating a new local browser profile.")
+        return self.runtime_dir
+
+    def persist(self) -> None:
+        """Write a versioned, unlocked profile snapshot to Drive after Chromium has closed."""
+        import uuid
+        if not self.runtime_dir.is_dir():
+            return
+        self.snapshots_dir.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        snapshot = self.snapshots_dir / f"session-{stamp}-{self._uuid[:8]}"
+        staging = self.snapshots_dir / f".staging-{uuid.uuid4().hex}"
+        try:
+            shutil.copytree(
+                self.runtime_dir,
+                staging,
+                ignore=_ignore_chromium_profile_cache,
+            )
+            # The browser is already closed, so this snapshot should contain no
+            # Chromium singleton locks. Remove any defensive leftovers before publish.
+            for name in CHROMIUM_PROFILE_LOCKS:
+                (staging / name).unlink(missing_ok=True)
+            staging.replace(snapshot)
+            write_json(
+                self.pointer_path,
+                {
+                    "profile_dir": str(snapshot),
+                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "storage": "google_drive_snapshot",
+                },
+            )
+            LOG.info("[AUTH] Saved closed browser profile snapshot for the next run: %s", snapshot)
+        except Exception as exc:
+            shutil.rmtree(staging, ignore_errors=True)
+            LOG.warning(
+                "[AUTH] Browser session worked, but its profile snapshot could not be saved to Drive: %s",
+                exc,
+            )
+        finally:
+            shutil.rmtree(self.runtime_dir, ignore_errors=True)
+
+    def discard(self) -> None:
+        """Remove a local staging profile when Chromium never started."""
+        shutil.rmtree(self.runtime_dir, ignore_errors=True)
+
 def normalise_image(path: Path):
     from PIL import Image, ImageOps
     with Image.open(path) as im:
@@ -97,6 +251,8 @@ class FlowBrowser:
         self.args, self.ledger = args, ledger
         self.pw = self.context = self.page = None
         self.last_submission = False
+        self.profile_store = None
+        self.browser_started = False
         self.diag = Path(args.output) / "flow_diagnostics"
         self.diag.mkdir(parents=True, exist_ok=True)
 
@@ -106,15 +262,22 @@ class FlowBrowser:
         expected_account = validate_expected_account(getattr(self.args, "expected_account", ""))
         if not os.environ.get("DISPLAY"):
             raise FlowAutomationError("No browser display found. Start the Colab noVNC display first.")
-        Path(self.args.profile_dir).mkdir(parents=True, exist_ok=True)
-        LOG.info("[AUTH] Starting visible Chromium with saved Flow profile: %s", self.args.profile_dir)
+        self.profile_store = ChromiumProfileStore(self.args.profile_dir)
+        runtime_profile = self.profile_store.prepare()
+        LOG.info(
+            "[AUTH] Starting visible Chromium with an isolated local profile: %s "
+            "(persistent Drive store: %s)",
+            runtime_profile,
+            self.args.profile_dir,
+        )
         self.pw = await async_playwright().start()
         try:
             self.context = await self.pw.chromium.launch_persistent_context(
-                user_data_dir=str(self.args.profile_dir), headless=False, accept_downloads=True,
+                user_data_dir=str(runtime_profile), headless=False, accept_downloads=True,
                 viewport={"width": 1440, "height": 900},
                 args=["--no-sandbox", "--disable-dev-shm-usage"],
             )
+            self.browser_started = True
             self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
             self.page.set_default_timeout(15_000)
             LOG.info("[AUTH] Opening Google Flow. Expected account: %s", expected_account)
@@ -132,20 +295,33 @@ class FlowBrowser:
             LOG.info("[FLOW] Verified account and Flow composer; proceeding to credit checks.")
             return self
         except Exception:
-            # __aexit__ is not called when __aenter__ raises, so close the browser explicitly.
+            # __aexit__ is not called when __aenter__ raises, so close explicitly.
+            await self._shutdown()
+            raise
+
+    async def _shutdown(self):
+        closed_cleanly = False
+        try:
             if self.context:
                 await self.context.close()
+                closed_cleanly = True
                 self.context = None
+            else:
+                closed_cleanly = not self.browser_started
+        finally:
             if self.pw:
                 await self.pw.stop()
                 self.pw = None
-            raise
+            if self.profile_store:
+                if self.browser_started and closed_cleanly:
+                    self.profile_store.persist()
+                else:
+                    self.profile_store.discard()
+                self.profile_store = None
+            self.browser_started = False
 
     async def __aexit__(self, exc_type, exc, tb):
-        if self.context:
-            await self.context.close()
-        if self.pw:
-            await self.pw.stop()
+        await self._shutdown()
 
     async def body(self):
         try:
