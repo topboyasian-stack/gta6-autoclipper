@@ -8,7 +8,7 @@ from scripts.colab_flow_tunnel import (
     cloudflared_asset,
     extract_tunnel_url,
 )
-from scripts.colab_flow_gateway import build_nginx_config
+from scripts.colab_flow_gateway import build_nginx_config, build_viewer_url
 
 
 class ColabFlowDisplayTests(unittest.TestCase):
@@ -83,6 +83,22 @@ class ColabFlowDisplayTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_nginx_config(token, listen_port=70000)
 
+    def test_viewer_url_uses_one_absolute_secret_websocket_path(self):
+        token = "b" * 43
+        url = build_viewer_url("https://silver-fox-24.trycloudflare.com", "/" + token)
+        self.assertEqual(
+            url,
+            "https://silver-fox-24.trycloudflare.com/"
+            + token
+            + "/vnc.html#autoconnect=1&resize=scale&reconnect=1&path=/"
+            + token
+            + "/websockify",
+        )
+        self.assertNotIn("/" + token + "/" + token + "/websockify", url)
+        with self.assertRaises(ValueError):
+            build_viewer_url("https://silver-fox-24.trycloudflare.com", token)
+        with self.assertRaises(ValueError):
+            build_viewer_url("https://example.com", "/" + token)
     def test_quick_tunnel_url_is_parsed_from_cloudflared_output(self):
         self.assertEqual(
             extract_tunnel_url("INF Tunnel created at https://silver-fox-24.trycloudflare.com"),
@@ -107,7 +123,8 @@ class ColabFlowDisplayTests(unittest.TestCase):
         self.assertIn("flow_gateway.start()", source)
         self.assertIn("flow_tunnel.start()", source)
         self.assertIn("random 256-bit path", source)
-        self.assertIn("token_path.lstrip", source)
+        self.assertIn("build_viewer_url(tunnel_url, token_path)", source)
+        self.assertNotIn("token_path.lstrip", source)
         self.assertIn("flow_gateway.stop()", source)
         self.assertNotIn("allowed_mail", source)
         self.assertNotIn("one-time PIN", source)
