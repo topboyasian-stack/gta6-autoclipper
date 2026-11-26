@@ -72,6 +72,8 @@ class BrowserOnlyNotebookTests(unittest.TestCase):
         self.assertIn("FLOW_CREDIT_CYCLE_ID", source)
         self.assertIn('ROOT / "scripts" / "flow_automator.py"', source)
         self.assertIn("serve_kernel_port_as_iframe", source)
+        self.assertIn('/vnc.html#autoconnect=1&resize=scale&reconnect=1&path=websockify', source)
+        self.assertIn('Opening the interactive noVNC desktop at /vnc.html', source)
         self.assertIn("FLOW_RESERVE_PERCENT = 10", source)
         self.assertIn("FLOW_TARGET_VIDEOS = 15", source)
         self.assertIn("FLOW_STRETCH_VIDEOS = 20", source)
