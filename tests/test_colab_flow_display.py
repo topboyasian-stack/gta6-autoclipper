@@ -8,6 +8,7 @@ from scripts.colab_flow_tunnel import (
     cloudflared_asset,
     extract_tunnel_url,
 )
+from scripts.colab_flow_gateway import build_nginx_config
 
 
 class ColabFlowDisplayTests(unittest.TestCase):
@@ -53,24 +54,34 @@ class ColabFlowDisplayTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             cloudflared_asset("unknown-cpu")
 
-    def test_quick_tunnel_requires_the_expected_email_and_loopback_origin(self):
-        command = build_tunnel_command(
-            "/content/cloudflared",
-            "http://127.0.0.1:6080",
-            "Owner@Example.com",
-        )
+    def test_quick_tunnel_uses_local_gateway_without_broken_email_auth(self):
+        command = build_tunnel_command("/content/cloudflared", "http://127.0.0.1:6081")
         self.assertEqual(command[0], "/content/cloudflared")
-        self.assertIn("--allowed-mail", command)
-        self.assertIn("owner@example.com", command)
+        self.assertIn("--url", command)
+        self.assertIn("http://127.0.0.1:6081", command)
+        self.assertNotIn("--allowed-mail", command)
         self.assertIn("--protocol", command)
         self.assertIn("http2", command)
         self.assertIn("--no-autoupdate", command[2:])
 
-    def test_quick_tunnel_rejects_invalid_email_and_public_origins(self):
+    def test_quick_tunnel_rejects_public_origins(self):
         with self.assertRaises(ValueError):
-            build_tunnel_command("/content/cloudflared", "http://127.0.0.1:6080", "bad-email")
+            build_tunnel_command("/content/cloudflared", "http://0.0.0.0:6081")
+
+    def test_nginx_gateway_only_proxies_the_random_secret_path(self):
+        token = "a" * 43
+        config = build_nginx_config(token, listen_port=6081, upstream_port=6080)
+        self.assertIn("listen 127.0.0.1:6081", config)
+        self.assertIn(f"location ^~ /{token}/", config)
+        self.assertIn(f"rewrite ^/{token}/(.*)$ /$1 break;", config)
+        self.assertIn("proxy_set_header Upgrade", config)
+        self.assertIn("proxy_read_timeout 3600s", config)
+        self.assertIn("location / {", config)
+        self.assertIn("return 404;", config)
         with self.assertRaises(ValueError):
-            build_tunnel_command("/content/cloudflared", "http://0.0.0.0:6080", "owner@example.com")
+            build_nginx_config("too-short")
+        with self.assertRaises(ValueError):
+            build_nginx_config(token, listen_port=70000)
 
     def test_quick_tunnel_url_is_parsed_from_cloudflared_output(self):
         self.assertEqual(
