@@ -27,8 +27,8 @@ def build_nginx_config(token: str, listen_port: int = 6081, upstream_port: int =
         if not isinstance(port, int) or not 1 <= port <= 65535:
             raise ValueError("Gateway ports must be valid TCP ports.")
     prefix = "/" + token + "/"
-    return f"""pid /tmp/colab-flow-gateway/nginx.pid;
-error_log /tmp/colab-flow-gateway/nginx-error.log warn;
+    return f"""pid nginx.pid;
+error_log nginx-error.log warn;
 events {{
     worker_connections 128;
 }}
