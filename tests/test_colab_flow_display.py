@@ -90,7 +90,7 @@ class ColabFlowDisplayTests(unittest.TestCase):
         )
         self.assertIsNone(extract_tunnel_url("no tunnel url here"))
 
-    def test_notebook_exposes_browser_through_email_restricted_tunnel(self):
+    def test_notebook_exposes_browser_through_secret_path_gateway(self):
         import json
         from pathlib import Path
 
@@ -102,15 +102,18 @@ class ColabFlowDisplayTests(unittest.TestCase):
             for cell in notebook.get("cells", [])
             if cell.get("cell_type") == "code"
         )
+        self.assertIn("ColabFlowGateway", source)
         self.assertIn("ColabFlowTunnel", source)
-        self.assertIn("allowed_email=FLOW_EXPECTED_GOOGLE_EMAIL", source)
+        self.assertIn("flow_gateway.start()", source)
         self.assertIn("flow_tunnel.start()", source)
-        self.assertIn("flow_tunnel.stop()", source)
-        self.assertIn("one-time PIN", source)
+        self.assertIn("random 256-bit path", source)
+        self.assertIn("token_path.lstrip", source)
+        self.assertIn("flow_gateway.stop()", source)
+        self.assertNotIn("allowed_mail", source)
+        self.assertNotIn("one-time PIN", source)
         self.assertNotIn("serve_kernel_port_as_iframe", source)
         self.assertNotIn("serve_kernel_port_as_window", source)
         self.assertLess(source.index("flow_tunnel.start()"), source.index('run_logged("Generate Flow starting frames'))
-
 
 
 if __name__ == "__main__":
