@@ -289,6 +289,19 @@ class FlowBrowser:
             self.browser_started = True
             self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
             self.page.set_default_timeout(15_000)
+            browser_state = await self.page.evaluate(
+                "() => ({webdriver: navigator.webdriver, userAgent: navigator.userAgent})"
+            )
+            if browser_state.get("webdriver") is True or "HeadlessChrome" in str(browser_state.get("userAgent", "")):
+                raise FlowAutomationError(
+                    "Branded Chrome still reports an automation-controlled or headless browser state. "
+                    "Google sign-in has not been attempted; check the Chrome launch configuration."
+                )
+            LOG.info(
+                "[AUTH] Browser readiness: branded Chrome visible; navigator.webdriver=%s; userAgent=%s",
+                browser_state.get("webdriver"),
+                browser_state.get("userAgent"),
+            )
             LOG.info("[AUTH] Opening Google Flow. Expected account: %s", expected_account)
             await self.page.goto(FLOW_URL, wait_until="domcontentloaded", timeout=90_000)
             await self._login()
