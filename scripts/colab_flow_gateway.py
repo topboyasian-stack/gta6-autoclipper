@@ -14,9 +14,43 @@ import socket
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 LOG = logging.getLogger("colab_flow_gateway")
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,}$")
+
+def build_viewer_url(tunnel_url: str, token_path: str) -> str:
+    """Build a noVNC URL with an absolute, single-prefix WebSocket path.
+
+    noVNC resolves a relative path against vnc.html. Since the viewer itself
+    already lives below the secret path, passing token/websockify duplicates
+    that path. An absolute /token/websockify keeps browser and nginx aligned.
+    """
+    parsed = urlsplit(str(tunnel_url or ""))
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or not parsed.hostname.endswith(".trycloudflare.com")
+        or parsed.port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("The viewer requires a valid HTTPS Cloudflare Quick Tunnel URL.")
+    if not isinstance(token_path, str) or not token_path.startswith("/"):
+        raise ValueError("The viewer path must be the absolute secret gateway path.")
+    token = token_path[1:]
+    if "/" in token or not TOKEN_PATTERN.fullmatch(token):
+        raise ValueError("The viewer path must contain exactly one valid secret token.")
+    prefix = "/" + token
+    fragment = (
+        "autoconnect=1&resize=scale&reconnect=1&path="
+        + prefix
+        + "/websockify"
+    )
+    return urlunsplit((parsed.scheme, parsed.netloc, prefix + "/vnc.html", "", fragment))
 
 
 def build_nginx_config(token: str, listen_port: int = 6081, upstream_port: int = 6080) -> str:
