@@ -35,7 +35,7 @@ class ColabFlowDisplayTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["127.0.0.1:16080", "127.0.0.1:15900"])
 
 
-    def test_viewer_is_embedded_and_has_separate_tab_fallback(self):
+    def test_viewer_is_embedded_without_deprecated_window_helper(self):
         import json
         from pathlib import Path
 
@@ -49,8 +49,8 @@ class ColabFlowDisplayTests(unittest.TestCase):
         )
         self.assertIn("colab_output.serve_kernel_port_as_iframe(", source)
         self.assertNotIn("display(colab_output.serve_kernel_port_as_iframe(", source)
-        self.assertIn("colab_output.serve_kernel_port_as_window(", source)
-        self.assertIn('anchor_text="Open Google Flow browser in a new tab"', source)
+        self.assertNotIn("serve_kernel_port_as_window", source)
+        self.assertIn("Colab's separate-tab", source)
         self.assertIn('width="100%"', source)
         self.assertIn('height=850', source)
 
