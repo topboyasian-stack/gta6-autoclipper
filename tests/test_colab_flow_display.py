@@ -1,9 +1,11 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from scripts.colab_flow_display import ColabFlowDisplay
 from scripts.colab_flow_tunnel import (
+    ColabFlowTunnel,
     build_tunnel_command,
     cloudflared_asset,
     extract_tunnel_url,
@@ -83,6 +85,28 @@ class ColabFlowDisplayTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_nginx_config(token, listen_port=70000)
 
+    def test_public_viewer_must_pass_page_and_script_health_checks(self):
+        class FakeResponse:
+            def __init__(self, body):
+                self.status = 200
+                self.body = body
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self, _limit):
+                return self.body
+
+        tunnel = ColabFlowTunnel()
+        tunnel.url = "https://silver-fox-24.trycloudflare.com"
+        responses = [FakeResponse(b"<html><title>noVNC</title></html>"), FakeResponse(b"export const UI = {};")]
+        with patch("scripts.colab_flow_tunnel.urlopen", side_effect=responses) as opener:
+            tunnel.verify_public_viewer("/" + ("c" * 43), timeout=1)
+        self.assertEqual(opener.call_count, 2)
+        self.assertIn("/" + ("c" * 43) + "/vnc.html", opener.call_args_list[0].args[0].full_url)
+        self.assertIn("/" + ("c" * 43) + "/app/ui.js", opener.call_args_list[1].args[0].full_url)
+        with self.assertRaises(ValueError):
+            tunnel.verify_public_viewer("/short", timeout=1)
     def test_viewer_url_uses_one_absolute_secret_websocket_path(self):
         token = "b" * 43
         url = build_viewer_url("https://silver-fox-24.trycloudflare.com", "/" + token)
