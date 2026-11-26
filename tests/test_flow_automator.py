@@ -37,6 +37,12 @@ class ExpectedFlowAccountTests(unittest.TestCase):
         ])
         self.assertEqual(args.expected_account, "owner@example.com")
 
+    def test_google_signin_uses_branded_chrome_without_playwright_automation_markers(self):
+        source = (ROOT / "scripts" / "flow_automator.py").read_text(encoding="utf-8")
+        self.assertIn('channel="chrome"', source)
+        self.assertIn('ignore_default_args=["--enable-automation"]', source)
+        self.assertIn('--disable-blink-features=AutomationControlled', source)
+        self.assertIn("user will complete Google sign-in manually", source)
     def test_account_identity_is_verified_before_flow_generation(self):
         source = (ROOT / "scripts" / "flow_automator.py").read_text(encoding="utf-8")
         browser_start = source.index("async def __aenter__(self):")
