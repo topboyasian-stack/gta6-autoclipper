@@ -54,7 +54,7 @@ def write_json(path: Path, value: dict):
 def validate_expected_account(value: str) -> str:
     """Require an explicit, well-formed email for the Google account expected in Flow."""
     email = str(value or "").strip()
-    if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise FlowAutomationError(
             "An exact expected Google account email is required. "
             "No Flow generation can proceed without account verification."
