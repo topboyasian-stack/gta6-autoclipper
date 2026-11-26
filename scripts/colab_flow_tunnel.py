@@ -12,7 +12,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 LOG = logging.getLogger("colab_flow_tunnel")
 CLOUDFLARED_VERSION = "2026.11.2"
@@ -187,6 +187,48 @@ class ColabFlowTunnel:
             "Cloudflare could not create the authenticated browser link. "
             "No Google Flow generation was submitted. "
             f"cloudflared log ({self.log_path}):\n{tail}"
+        )
+
+
+    def verify_public_viewer(self, path_prefix: str, timeout: int = 30) -> None:
+        """Do not expose a viewer link until the public page and noVNC script respond."""
+        if not self.url:
+            raise RuntimeError("The browser tunnel is not running.")
+        if not re.fullmatch(r"/[A-Za-z0-9_-]{40,}", str(path_prefix or "")):
+            raise ValueError("A valid absolute secret gateway path is required.")
+        viewer_url = self.url + path_prefix + "/vnc.html"
+        script_url = self.url + path_prefix + "/app/ui.js"
+        deadline = time.monotonic() + max(1, int(timeout))
+        last_error = "No response received from the temporary viewer."
+        while time.monotonic() < deadline:
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 Colab-Flow-Viewer-Healthcheck",
+                    "Cache-Control": "no-cache",
+                }
+                with urlopen(Request(viewer_url, headers=headers), timeout=10) as response:
+                    page_status = getattr(response, "status", 200)
+                    page = response.read(1024 * 1024)
+                if page_status != 200 or b"novnc" not in page.lower():
+                    raise RuntimeError(
+                        f"Public viewer page returned HTTP {page_status} or no noVNC HTML."
+                    )
+                with urlopen(Request(script_url, headers=headers), timeout=10) as response:
+                    script_status = getattr(response, "status", 200)
+                    script = response.read(4096)
+                if script_status != 200 or not script or b"<html" in script.lower():
+                    raise RuntimeError(
+                        f"Public noVNC application script returned HTTP {script_status}."
+                    )
+                LOG.info("[VIEWER] Public viewer page and noVNC application script passed the link check.")
+                return
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                time.sleep(min(1.5, max(0, deadline - time.monotonic())))
+        raise RuntimeError(
+            "The tunnel hostname was created, but the public viewer did not pass its HTTP readiness check. "
+            "No unusable link was displayed and no Google Flow generation was submitted. "
+            + last_error
         )
 
     def stop(self) -> None:
