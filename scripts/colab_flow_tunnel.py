@@ -105,7 +105,7 @@ def extract_tunnel_url(text: str) -> str | None:
 
 
 class ColabFlowTunnel:
-    """Start and stop a temporary, email-gated Cloudflare Quick Tunnel."""
+    """Start and stop a temporary Cloudflare Quick Tunnel to a secret-path gateway."""
 
     def __init__(
         self,
