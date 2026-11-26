@@ -51,6 +51,17 @@ def write_json(path: Path, value: dict):
     temp.replace(path)
 
 
+def validate_expected_account(value: str) -> str:
+    """Require an explicit, well-formed email for the Google account expected in Flow."""
+    email = str(value or "").strip()
+    if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+        raise FlowAutomationError(
+            "An exact expected Google account email is required. "
+            "No Flow generation can proceed without account verification."
+        )
+    return email
+
+
 def normalise_image(path: Path):
     from PIL import Image, ImageOps
     with Image.open(path) as im:
@@ -92,28 +103,43 @@ class FlowBrowser:
     async def __aenter__(self):
         from playwright.async_api import async_playwright
         import os
+        expected_account = validate_expected_account(getattr(self.args, "expected_account", ""))
         if not os.environ.get("DISPLAY"):
             raise FlowAutomationError("No browser display found. Start the Colab noVNC display first.")
         Path(self.args.profile_dir).mkdir(parents=True, exist_ok=True)
+        LOG.info("[AUTH] Starting visible Chromium with saved Flow profile: %s", self.args.profile_dir)
         self.pw = await async_playwright().start()
-        self.context = await self.pw.chromium.launch_persistent_context(
-            user_data_dir=str(self.args.profile_dir), headless=False, accept_downloads=True,
-            viewport={"width": 1440, "height": 900},
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
-        self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
-        self.page.set_default_timeout(15_000)
-        await self.page.goto(FLOW_URL, wait_until="domcontentloaded", timeout=90_000)
-        await self._login()
-        await self.page.wait_for_timeout(2500)
-        if not await self._prompt(False):
-            await self._click([r"new project", r"create project", r"start a new project"], False)
-            await self.page.wait_for_timeout(2500)
-        if not await self._prompt(False):
-            await self.diagnostics("composer_missing")
-            raise FlowAutomationError("Flow composer not found. Nothing was generated.")
-        LOG.info("Authenticated Flow workspace is ready.")
-        return self
+        try:
+            self.context = await self.pw.chromium.launch_persistent_context(
+                user_data_dir=str(self.args.profile_dir), headless=False, accept_downloads=True,
+                viewport={"width": 1440, "height": 900},
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+            self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
+            self.page.set_default_timeout(15_000)
+            LOG.info("[AUTH] Opening Google Flow. Expected account: %s", expected_account)
+            await self.page.goto(FLOW_URL, wait_until="domcontentloaded", timeout=90_000)
+            await self._login()
+            await self.verify_account(expected_account)
+            await self.page.wait_for_timeout(1500)
+            if not await self._prompt(False):
+                LOG.info("[FLOW] Opening a new Flow project/composer.")
+                await self._click([r"new project", r"create project", r"start a new project"], False)
+                await self.page.wait_for_timeout(2500)
+            if not await self._prompt(False):
+                await self.diagnostics("composer_missing")
+                raise FlowAutomationError("Flow composer not found. Nothing was generated.")
+            LOG.info("[FLOW] Verified account and Flow composer; proceeding to credit checks.")
+            return self
+        except Exception:
+            # __aexit__ is not called when __aenter__ raises, so close the browser explicitly.
+            if self.context:
+                await self.context.close()
+                self.context = None
+            if self.pw:
+                await self.pw.stop()
+                self.pw = None
+            raise
 
     async def __aexit__(self, exc_type, exc, tb):
         if self.context:
@@ -128,18 +154,90 @@ class FlowBrowser:
             return ""
 
     async def _login(self):
+        LOG.info("[AUTH] Checking whether this saved browser profile is signed in; sign in inside the embedded browser if prompted.")
         start, announced = time.monotonic(), False
         while time.monotonic() - start < self.args.login_timeout:
             url, body = self.page.url.lower(), (await self.body()).lower()
             signed_in = "labs.google" in url and "accounts.google.com" not in url
             login_screen = "accounts.google.com" in url or ("sign in" in body and ("password" in body or "email or phone" in body))
             if signed_in and not login_screen:
+                LOG.info("[AUTH] Flow page is open; the active Google account still needs explicit verification.")
                 return
             if login_screen and not announced:
-                LOG.warning("Sign in normally in the embedded browser and complete any Google security checks.")
+                LOG.warning("[AUTH] SIGN-IN REQUIRED: use the embedded browser and select the intended Google account.")
                 announced = True
             await self.page.wait_for_timeout(1000)
         raise FlowAutomationError("Google sign-in timed out. Your Drive browser profile is retained for the next run.")
+
+    async def verify_account(self, expected_account: str):
+        """Fail closed unless the expected email is visible in the active Google account UI."""
+        expected = validate_expected_account(expected_account).casefold()
+        account_selector = (
+            'button[aria-label*="Google Account" i], a[aria-label*="Google Account" i], '
+            '[role="button"][aria-label*="Google Account" i], '
+            'button[title*="Google Account" i], a[title*="Google Account" i], '
+            '[role="button"][title*="Google Account" i]'
+        )
+
+        async def visible_identity_text():
+            fragments = [await self.body()]
+            nodes = self.page.locator("button, a, [role='button'], [role='menuitem'], [role='dialog'], img")
+            for i in range(min(await nodes.count(), 250)):
+                node = nodes.nth(i)
+                try:
+                    if not await node.is_visible():
+                        continue
+                    for attr in ("aria-label", "title", "alt", "data-email"):
+                        value = await node.get_attribute(attr)
+                        if value:
+                            fragments.append(value)
+                    if await node.evaluate("(el) => !['IMG','SVG'].includes(el.tagName)"):
+                        text = (await node.inner_text()).strip()
+                        if text:
+                            fragments.append(text)
+                except Exception:
+                    continue
+            return "\\n".join(fragments).casefold()
+
+        controls = self.page.locator(account_selector)
+        control_count = await controls.count()
+        direct_identity = ""
+        clickable = None
+        for i in range(min(control_count, 20)):
+            node = controls.nth(i)
+            try:
+                if not await node.is_visible():
+                    continue
+                parts = [await node.get_attribute(attr) or "" for attr in ("aria-label", "title", "alt", "data-email")]
+                direct_identity += " " + " ".join(parts)
+                if clickable is None:
+                    clickable = node
+            except Exception:
+                continue
+
+        if expected not in direct_identity.casefold() and clickable is not None:
+            try:
+                LOG.info("[AUTH] Opening Google account menu to confirm account identity.")
+                await clickable.click()
+                await self.page.wait_for_timeout(700)
+            except Exception as exc:
+                LOG.warning("[AUTH] Could not open the Google account menu: %s", exc)
+
+        evidence = await visible_identity_text()
+        account_menu_visible = any(
+            marker in evidence
+            for marker in ("manage your google account", "sign out", "sign out of", "switch account", "add another account")
+        )
+        if expected not in direct_identity.casefold() and not (
+            expected in evidence and account_menu_visible
+        ):
+            await self.diagnostics("account_unverified")
+            raise FlowAutomationError(
+                f"Could not verify that Google Flow is using {expected_account!r}. "
+                "No image or video generation was submitted. Check the account in the embedded browser, "
+                "then resume with the same expected email."
+            )
+        LOG.info("[AUTH] VERIFIED active Google account: %s", expected_account)
 
     async def diagnostics(self, label: str):
         try:
@@ -331,6 +429,7 @@ class FlowBrowser:
             raise FlowAutomationError("Flow appears configured for multiple outputs. Stopped before Generate.")
 
     async def balance(self):
+        LOG.info("[BALANCE] Reading the live Google Flow credit balance before any submission.")
         patterns = (
             r"(?:remaining|available|balance)\D{0,30}([\d,]+)\s*(?:google flow\s*)?credits?",
             r"([\d,]+)\s*(?:google flow\s*)?credits?\s*(?:remaining|available|left)",
@@ -347,35 +446,48 @@ class FlowBrowser:
             return None
         value = await parse()
         if value is not None:
+            LOG.info("[BALANCE] Verified live balance: %d Flow credits.", value)
             return value
         await self._click([r"account", r"profile", r"credit", r"balance"], False)
         await self.page.wait_for_timeout(700)
         value = await parse()
         if value is not None:
+            LOG.info("[BALANCE] Verified live balance: %d Flow credits.", value)
             return value
         await self.diagnostics("credit_balance_unreadable")
         raise FlowAutomationError("Live Flow balance is unreadable; no generation can safely proceed.")
 
     async def generate_and_download(self, destination: Path, media_type: str):
+        tag = media_type.upper()
         before = len(await self._buttons([r"download"]))
         buttons = await self._buttons([r"^generate$", r"generate image", r"generate video", r"^create$"])
         if not buttons or not await buttons[-1].is_enabled():
             await self.diagnostics("generate_unavailable")
             raise FlowAutomationError("Generate is not available; no request was submitted.")
+        LOG.info("[%s] SUBMITTING one output now: %s", tag, destination.name)
         self.last_submission = True  # Treat click timeouts as potentially billable; never auto-retry them.
         await buttons[-1].click()
+        LOG.info("[%s] Generate clicked; waiting for Flow to finish. Timeout: %ds.", tag, self.args.render_timeout)
         destination.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + self.args.render_timeout
+        started = time.monotonic()
+        last_progress = started
         download_button = None
         while time.monotonic() < deadline:
             current = await self._buttons([r"download"])
             if len(current) > before:
                 download_button = current[-1]
                 break
+            now = time.monotonic()
+            if now - last_progress >= 30:
+                LOG.info("[%s] Still rendering %s (%.0fs elapsed / %ds max).",
+                         tag, destination.name, now - started, self.args.render_timeout)
+                last_progress = now
             await self.page.wait_for_timeout(2000)
         if download_button is None:
             await self.diagnostics(f"{media_type}_download_timeout")
             raise FlowAutomationError(f"No new Flow Download control appeared within {self.args.render_timeout}s. Job status is uncertain; do not retry automatically.")
+        LOG.info("[%s] Render result appeared; downloading %s.", tag, destination.name)
         async with self.page.expect_download(timeout=45000) as event:
             await download_button.click()
         download = await event.value
@@ -384,12 +496,15 @@ class FlowBrowser:
         await download.save_as(str(temp))
         saved = temp.with_suffix(suffix)
         temp.replace(saved)
+        LOG.info("[%s] Download saved to %s.", tag, saved)
         return saved
 
     async def make_image(self, item, project_id):
         path = Path(item["output"])
         if path.is_file() and path.stat().st_size > 10000:
+            LOG.info("[IMAGE] Reusing saved image: %s", path.name)
             return False
+        LOG.info("[IMAGE] Preparing image asset %s (%s).", item.get("key", path.stem), item.get("kind", "asset"))
         import hashlib
         key = f"{project_id}:{item['kind']}:{item['key']}:{hashlib.sha256(item['prompt'].encode()).hexdigest()[:16]}"
         key = retry_key(self.ledger.data["image_events"], "image_key", key, "failed_no_quota_charge")
@@ -432,7 +547,9 @@ class FlowBrowser:
     async def make_video(self, scene, project_id):
         path = Path(scene["output_clip"])
         if path.is_file() and path.stat().st_size > 50000:
+            LOG.info("[VIDEO] Reusing completed clip: %s", path.name)
             return False
+        LOG.info("[VIDEO] Preparing scene %s; no video request has been submitted for this scene yet.", scene.get("scene_id", path.stem))
         frame = Path(scene["starting_frame"])
         if not frame.is_file():
             raise FileNotFoundError(f"Scene starting frame missing: {frame}")
@@ -499,6 +616,8 @@ class FlowBrowser:
 
 
 async def run(args):
+    expected_account = validate_expected_account(getattr(args, "expected_account", ""))
+    LOG.info("[START] Flow automation starting for expected Google account: %s", expected_account)
     out = Path(args.output).resolve()
     image_plan = read_json(out / "assets_generation_plan.json", list)
     manifest = read_json(out / "flow_upload_manifest.json")
@@ -590,6 +709,7 @@ def parser():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--workspace", type=Path, required=True)
     p.add_argument("--profile-dir", type=Path, required=True)
+    p.add_argument("--expected-account", default="", help="Exact email address that must be verified in the active Google Flow account menu.")
     p.add_argument("--credit-ledger", type=Path, required=True)
     p.add_argument("--cycle-id", required=True)
     p.add_argument("--monthly-credits", type=int, default=1000)
