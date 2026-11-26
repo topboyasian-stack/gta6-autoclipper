@@ -265,17 +265,26 @@ class FlowBrowser:
         self.profile_store = ChromiumProfileStore(self.args.profile_dir)
         runtime_profile = self.profile_store.prepare()
         LOG.info(
-            "[AUTH] Starting visible Chromium with an isolated local profile: %s "
-            "(persistent Drive store: %s)",
+            "[AUTH] Starting branded Google Chrome with an isolated local profile: %s "
+            "(persistent Drive store: %s). The user will complete Google sign-in manually "
+            "in the visible browser before any automated Flow actions.",
             runtime_profile,
             self.args.profile_dir,
         )
         self.pw = await async_playwright().start()
         try:
             self.context = await self.pw.chromium.launch_persistent_context(
-                user_data_dir=str(runtime_profile), headless=False, accept_downloads=True,
+                user_data_dir=str(runtime_profile),
+                channel="chrome",
+                headless=False,
+                accept_downloads=True,
                 viewport={"width": 1440, "height": 900},
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                ignore_default_args=["--enable-automation"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ],
             )
             self.browser_started = True
             self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
