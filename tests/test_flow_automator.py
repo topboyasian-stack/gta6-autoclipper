@@ -43,6 +43,8 @@ class ExpectedFlowAccountTests(unittest.TestCase):
         self.assertIn('ignore_default_args=["--enable-automation"]', source)
         self.assertIn('--disable-blink-features=AutomationControlled', source)
         self.assertIn("user will complete Google sign-in manually", source)
+        self.assertIn("navigator.webdriver", source)
+        self.assertIn("Branded Chrome still reports an automation-controlled", source)
     def test_account_identity_is_verified_before_flow_generation(self):
         source = (ROOT / "scripts" / "flow_automator.py").read_text(encoding="utf-8")
         browser_start = source.index("async def __aenter__(self):")
