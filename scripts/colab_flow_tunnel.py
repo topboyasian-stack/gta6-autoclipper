@@ -82,12 +82,8 @@ def ensure_cloudflared(binary_path: Path = Path("/content/cloudflared")) -> Path
 def build_tunnel_command(
     binary: str | Path,
     origin_url: str,
-    allowed_email: str,
 ) -> list[str]:
-    """Build an email-restricted Quick Tunnel command for the noVNC HTTP endpoint."""
-    email = str(allowed_email or "").strip().casefold()
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-        raise ValueError("A valid email address is required to restrict browser tunnel access.")
+    """Build a temporary Quick Tunnel command; origin access is gated locally by a secret path."""
     if not str(origin_url).startswith("http://127.0.0.1:"):
         raise ValueError("The browser tunnel origin must be a loopback HTTP URL.")
     return [
@@ -98,12 +94,9 @@ def build_tunnel_command(
         "http2",
         "--url",
         str(origin_url),
-        "--allowed-mail",
-        email,
         "--loglevel",
         "info",
     ]
-
 
 def extract_tunnel_url(text: str) -> str | None:
     """Extract a Cloudflare Quick Tunnel hostname from cloudflared output."""
@@ -116,13 +109,11 @@ class ColabFlowTunnel:
 
     def __init__(
         self,
-        allowed_email: str,
-        origin_url: str = "http://127.0.0.1:6080",
+        origin_url: str = "http://127.0.0.1:6081",
         log_path: Path = Path("/tmp/colab-flow-tunnel.log"),
         binary_path: Path = Path("/content/cloudflared"),
         startup_timeout: int = 90,
     ):
-        self.allowed_email = str(allowed_email or "").strip().casefold()
         self.origin_url = str(origin_url)
         self.log_path = Path(log_path)
         self.binary_path = Path(binary_path)
@@ -159,13 +150,12 @@ class ColabFlowTunnel:
             raise RuntimeError("The browser tunnel has already been started.")
         self.binary_path = ensure_cloudflared(self.binary_path)
         command = build_tunnel_command(
-            self.binary_path, self.origin_url, self.allowed_email
+            self.binary_path, self.origin_url
         )
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_path.write_text("", encoding="utf-8")
         LOG.info(
-            "[VIEWER] Starting temporary browser tunnel restricted to %s.",
-            self.allowed_email,
+            "[VIEWER] Starting temporary browser tunnel to the loopback secret-path gateway."
         )
         self.process = subprocess.Popen(
             command,
