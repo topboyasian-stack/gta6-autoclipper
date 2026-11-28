@@ -15,20 +15,47 @@ from pipeline.models import EpisodePackage
 
 
 def _make_prompt(topic: str, scene_count: int) -> str:
-    prompt = """
+    profile = os.getenv("MYSTERY_PLANNER_PROFILE", "mystery_scifi").strip().lower()
+    if profile in {"pip_pattern_explainer", "educational_explainer", "pip_pattern"}:
+        channel_brief = """
+You are the educational explainer writer and visual director for Pip & The Pattern, an original YouTube
+channel about the hidden patterns behind money, habits, and human behaviour. Make an accurate, useful,
+original visual explanation for a general audience; use concrete everyday examples and simple analogies.
+This is educational nonfiction, not a mystery/science-fiction story. Do not invent research, statistics,
+expert quotations, or guaranteed financial outcomes. Keep Pip visually consistent as a friendly recurring
+host in a hand-drawn ink and soft-watercolor world on warm cream paper. Never imitate a named creator or
+copy another video's script or structure.
+""".strip()
+        beat_duration = 5
+        arc_rules = """
+- Build one clear explanation arc: relatable hook, familiar problem, concrete visual analogy, why the
+  pattern happens, and a useful takeaway.
+- Choose story, contrast, cause-and-effect, myth correction, or a short sequence according to the topic.
+  Do not force numbered steps, suspense, a plot twist, or a sequel hook.
+- If the topic does not call for a sequence of steps, keep titles and narration free of step numbers.
+- Use financial examples as illustrations, not personalized financial advice. State uncertainty where needed.
+""".strip()
+    else:
+        channel_brief = """
 You are the story editor and cinematographer for an original, monetization-minded
 YouTube mystery/science-fiction Shorts channel. Create one self-contained, emotionally satisfying
 micro-story using original characters, no copyrighted franchises, and no imitation of named creators.
 Tone: suspenseful, grounded, cinematic, intelligent.
+""".strip()
+        beat_duration = 8
+        arc_rules = ""
+    prompt = f"""
+{channel_brief}
 
 TOPIC / ONE-LINE PREMISE:
 <<TOPIC>>
 
 OUTPUT REQUIREMENTS:
-- Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately 8-second Google Flow clip.
-- Target runtime is approximately <<EXPECTED_SECONDS>> seconds; keep it suitable for a vertical YouTube Short.
-- The opening scene must establish a strong visual hook and an unanswered question in the first 1–2 seconds.
-- Build one clear story arc: hook, escalation, discovery or reversal, and satisfying ending/payoff.
+- Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately {beat_duration}-second Google Flow clip.
+- Target runtime is approximately <<EXPECTED_SECONDS>> seconds; for the Pip & The Pattern profile, keep the total at or under 60 seconds.
+- The opening scene must establish a clear visual hook and an unanswered question or useful promise in the first 1–2 seconds.
+{arc_rules}
+- Build a coherent arc appropriate to the channel profile, with a clear ending and payoff.
 - Write one continuous narrator voiceover, not character dialogue. Keep each scene's narration concise,
   natural to speak, and aligned with the action shown; avoid filler and generic exposition.
 - narration_script must equal the scene narrations joined in order.
@@ -43,7 +70,7 @@ OUTPUT REQUIREMENTS:
 - Avoid generated lettering, logos, subtitles, watermarks, split panels, and gibberish text inside images.
 - Provide 3 distinct 16:9 YouTube thumbnail alternatives A/B/C with readable short title_text.
 - Do not promise factual accuracy for fictional elements; mark potentially sensitive material in content_notes.
-- End with a payoff or twist that feels earned; a sequel hook is optional and must not replace the ending.
+- End with an earned payoff; for educational explainers, the payoff should be a clear insight or practical takeaway rather than a forced plot twist.
 - narration_script must be the scene narration combined in order; it will be rebuilt from scenes before saving.
 - Use simple, direct strings and arrays. Do not add commentary or Markdown fences outside the JSON object.
 
@@ -74,9 +101,10 @@ JSON OUTPUT SHAPE — return one JSON object with these keys:
 }
 Use the exact property names above. Return valid JSON only.
 """.strip()
+    expected_seconds = min(60, int(scene_count) * 5) if profile in {"pip_pattern_explainer", "educational_explainer", "pip_pattern"} else int(scene_count) * 8
     return (prompt.replace("<<TOPIC>>", topic)
             .replace("<<SCENE_COUNT>>", str(scene_count))
-            .replace("<<EXPECTED_SECONDS>>", str(scene_count * 8)))
+            .replace("<<EXPECTED_SECONDS>>", str(expected_seconds)))
 
 
 def _episode_from_response(response: Any) -> EpisodePackage:
