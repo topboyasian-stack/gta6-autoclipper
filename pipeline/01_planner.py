@@ -27,12 +27,15 @@ host in a hand-drawn ink and soft-watercolor world on warm cream paper. Never im
 copy another video's script or structure.
 """.strip()
         beat_duration = 5
+        runtime_rule = "Target runtime is approximately <<EXPECTED_SECONDS>> seconds and must stay at or under 60 seconds."
         arc_rules = """
 - Build one clear explanation arc: relatable hook, familiar problem, concrete visual analogy, why the
   pattern happens, and a useful takeaway.
 - Choose story, contrast, cause-and-effect, myth correction, or a short sequence according to the topic.
   Do not force numbered steps, suspense, a plot twist, or a sequel hook.
 - If the topic does not call for a sequence of steps, keep titles and narration free of step numbers.
+- Keep narration short enough for about 5 seconds per scene (roughly 7–11 spoken words); the full voiceover
+  must fit the 60-second target.
 - Use financial examples as illustrations, not personalized financial advice. State uncertainty where needed.
 """.strip()
     else:
@@ -43,7 +46,8 @@ micro-story using original characters, no copyrighted franchises, and no imitati
 Tone: suspenseful, grounded, cinematic, intelligent.
 """.strip()
         beat_duration = 8
-        arc_rules = ""
+        runtime_rule = "Target runtime is approximately <<EXPECTED_SECONDS>> seconds; keep it suitable for a vertical YouTube Short."
+        arc_rules = "Build one clear story arc: hook, escalation, discovery or reversal, and satisfying ending/payoff."
     prompt = f"""
 {channel_brief}
 
@@ -52,7 +56,7 @@ TOPIC / ONE-LINE PREMISE:
 
 OUTPUT REQUIREMENTS:
 - Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately {beat_duration}-second Google Flow clip.
-- Target runtime is approximately <<EXPECTED_SECONDS>> seconds; for the Pip & The Pattern profile, keep the total at or under 60 seconds.
+- {runtime_rule}
 - The opening scene must establish a clear visual hook and an unanswered question or useful promise in the first 1–2 seconds.
 {arc_rules}
 - Build a coherent arc appropriate to the channel profile, with a clear ending and payoff.
