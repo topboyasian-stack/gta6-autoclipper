@@ -48,17 +48,17 @@ Tone: suspenseful, grounded, cinematic, intelligent.
         beat_duration = 8
         runtime_rule = "Target runtime is approximately <<EXPECTED_SECONDS>> seconds; keep it suitable for a vertical YouTube Short."
         arc_rules = "Build one clear story arc: hook, escalation, discovery or reversal, and satisfying ending/payoff."
-    prompt = f"""
-{channel_brief}
+    prompt = """
+<<CHANNEL_BRIEF>>
 
 TOPIC / ONE-LINE PREMISE:
 <<TOPIC>>
 
 OUTPUT REQUIREMENTS:
-- Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately {beat_duration}-second Google Flow clip.
-- {runtime_rule}
+- Create exactly <<SCENE_COUNT>> scenes, each planned for an approximately <<BEAT_DURATION>>-second Google Flow clip.
+- <<RUNTIME_RULE>>
 - The opening scene must establish a clear visual hook and an unanswered question or useful promise in the first 1–2 seconds.
-{arc_rules}
+<<ARC_RULES>>
 - Build a coherent arc appropriate to the channel profile, with a clear ending and payoff.
 - Write one continuous narrator voiceover, not character dialogue. Keep each scene's narration concise,
   natural to speak, and aligned with the action shown; avoid filler and generic exposition.
@@ -108,6 +108,10 @@ Use the exact property names above. Return valid JSON only.
     expected_seconds = min(60, int(scene_count) * 5) if profile in {"pip_pattern_explainer", "educational_explainer", "pip_pattern"} else int(scene_count) * 8
     return (prompt.replace("<<TOPIC>>", topic)
             .replace("<<SCENE_COUNT>>", str(scene_count))
+            .replace("<<CHANNEL_BRIEF>>", channel_brief)
+            .replace("<<BEAT_DURATION>>", str(beat_duration))
+            .replace("<<RUNTIME_RULE>>", runtime_rule)
+            .replace("<<ARC_RULES>>", arc_rules)
             .replace("<<EXPECTED_SECONDS>>", str(expected_seconds)))
 
 
